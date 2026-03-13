@@ -14,6 +14,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      billing_proofs: {
+        Row: {
+          admin_notes: string | null
+          amount: number
+          created_at: string
+          id: string
+          screenshot_url: string
+          shop_id: string
+          status: string
+          updated_at: string
+          verified_at: string | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          amount: number
+          created_at?: string
+          id?: string
+          screenshot_url: string
+          shop_id: string
+          status?: string
+          updated_at?: string
+          verified_at?: string | null
+        }
+        Update: {
+          admin_notes?: string | null
+          amount?: number
+          created_at?: string
+          id?: string
+          screenshot_url?: string
+          shop_id?: string
+          status?: string
+          updated_at?: string
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_proofs_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           created_at: string
@@ -86,11 +130,14 @@ export type Database = {
       products: {
         Row: {
           attributes: Json
+          category: string | null
+          condition: string
           created_at: string
           description: string | null
           id: string
           image_urls: string[]
           is_active: boolean
+          list_on_marketplace: boolean
           name: string
           price: number
           shop_id: string
@@ -101,11 +148,14 @@ export type Database = {
         }
         Insert: {
           attributes?: Json
+          category?: string | null
+          condition?: string
           created_at?: string
           description?: string | null
           id?: string
           image_urls?: string[]
           is_active?: boolean
+          list_on_marketplace?: boolean
           name: string
           price: number
           shop_id: string
@@ -116,11 +166,14 @@ export type Database = {
         }
         Update: {
           attributes?: Json
+          category?: string | null
+          condition?: string
           created_at?: string
           description?: string | null
           id?: string
           image_urls?: string[]
           is_active?: boolean
+          list_on_marketplace?: boolean
           name?: string
           price?: number
           shop_id?: string
@@ -168,36 +221,66 @@ export type Database = {
       }
       shops: {
         Row: {
+          allow_guest_purchase: boolean
+          cover_url: string | null
           created_at: string
+          delivery_policy: string | null
           description: string | null
           id: string
+          inspection_requested_at: string | null
           is_active: boolean
+          location: string | null
           logo_url: string | null
           name: string
           owner_id: string
+          payment_info: Json
+          phone: string | null
+          rejection_reason: string | null
           slug: string
+          status: string
+          subscription_expires_at: string | null
           updated_at: string
         }
         Insert: {
+          allow_guest_purchase?: boolean
+          cover_url?: string | null
           created_at?: string
+          delivery_policy?: string | null
           description?: string | null
           id?: string
+          inspection_requested_at?: string | null
           is_active?: boolean
+          location?: string | null
           logo_url?: string | null
           name: string
           owner_id: string
+          payment_info?: Json
+          phone?: string | null
+          rejection_reason?: string | null
           slug: string
+          status?: string
+          subscription_expires_at?: string | null
           updated_at?: string
         }
         Update: {
+          allow_guest_purchase?: boolean
+          cover_url?: string | null
           created_at?: string
+          delivery_policy?: string | null
           description?: string | null
           id?: string
+          inspection_requested_at?: string | null
           is_active?: boolean
+          location?: string | null
           logo_url?: string | null
           name?: string
           owner_id?: string
+          payment_info?: Json
+          phone?: string | null
+          rejection_reason?: string | null
           slug?: string
+          status?: string
+          subscription_expires_at?: string | null
           updated_at?: string
         }
         Relationships: [
