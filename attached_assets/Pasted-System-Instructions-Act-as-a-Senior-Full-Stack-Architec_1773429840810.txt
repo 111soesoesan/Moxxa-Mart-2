@@ -1,0 +1,52 @@
+System Instructions:
+Act as a Senior Full-Stack Architect. Build a Next.js 14+ (App Router) project using TypeScript, Tailwind CSS, Shadcn UI, and the Supabase CLI for database management. Do not use Drizzle.
+
+1. Core Infrastructure & CLI Workflow:
+
+Tech Stack: Next.js (App Router), Shadcn UI (@latest), and @supabase/ssr.
+
+Database Management: Use the supabase CLI (npx supabase) for all schema changes.
+
+Environment Variables: Utilize NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, and SUPABASE_PROJECT_ID.
+
+Automation: Create the following scripts in package.json:
+
+"db:mig": "npx supabase migration new"
+
+"db:push": "npx supabase db push"
+
+"db:types": "npx supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > types/supabase.ts"
+
+2. File Structure & Schema Initialization:
+
+Ensure the following structure exists:
+
+Plaintext
+supabase/
+   config.toml
+   migrations/
+   seed.sql
+Architectural Goal: Create a flexible, modular schema within supabase/migrations/.
+
+Schema Logic:
+
+Profiles & Multi-Vendor: Tables for profiles (auth linked) and shops (multi-store support).
+
+Extensible Products: A products table using JSONB for dynamic attributes/variants.
+
+Hybrid Orders: Support for Guest vs. Authenticated checkouts with JSONB for snapshots of order data.
+
+Manual Payments: Include a payment_proof_url in the orders table for manual bank/mobile wallet verification.
+
+3. Initial Implementation Tasks:
+
+Supabase Link: Use the provided SUPABASE_PROJECT_ID to link the project.
+
+First Migration: Generate a "baseline" migration that sets up the tables and basic RLS (Row Level Security) policies.
+
+Type Safety: Run the db:types command immediately after the first push to generate the types/supabase.ts file.
+
+The "Bridge" Component: Build a useCart hook for localStorage that integrates with the generated Supabase types.
+
+4. Goal for this Session:
+Initialize the repo, link it to the live Supabase project, execute the first migration push, and generate the TypeScript types. The resulting code should be clean, modular, and ready for high-speed development in Cursor/Windsurf.
