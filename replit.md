@@ -91,6 +91,48 @@ const { cart, itemCount, subtotal, addItem, removeItem, clearCart, toOrderSnapsh
 - Enforces single-shop constraint (clears cart if shop changes)
 - `toOrderSnapshot()` returns the `items_snapshot` payload ready for the `orders` table
 
+## Shadcn UI Components Installed
+
+All components live in `src/components/ui/`. The following are installed:
+
+| Component | Used For |
+|-----------|----------|
+| `accordion` | Order detail expansion, FAQ |
+| `alert` | Status messages, vendor feedback |
+| `alert-dialog` | Approve/reject confirmations |
+| `avatar` | Shop logos, user avatars |
+| `badge` | "Sold by" tags, item conditions, statuses |
+| `breadcrumb` | Category navigation |
+| `button` | All CTAs |
+| `card` | Product cards, shop cards |
+| `carousel` | Product image galleries |
+| `checkbox` | Vendor/shop filters |
+| `command` | Global keyword search palette |
+| `dialog` | Modals (order detail, confirmation) |
+| `drawer` | Mobile cart, side panels |
+| `dropdown-menu` | User menu, shop switcher |
+| `form` | All form wrappers (react-hook-form + zod) |
+| `input` | Text fields |
+| `input-group` | Input with prefix/suffix |
+| `label` | Form labels |
+| `navigation-menu` | Global category tree |
+| `popover` | Filters, date pickers |
+| `progress` | Vendor onboarding completion |
+| `radio-group` | Item condition selection |
+| `scroll-area` | Long lists, sidebars |
+| `select` | Dropdowns, filter selects |
+| `separator` | Layout dividers |
+| `sheet` | Mobile nav, side drawers |
+| `skeleton` | Loading placeholders |
+| `sonner` | Toast notifications (via `<Toaster />` in layout) |
+| `switch` | "Allow guest purchase", "List on global marketplace" toggles |
+| `table` | Admin queues, sales ledger |
+| `tabs` | Vendor dashboard sections |
+| `textarea` | Shop bio, delivery policy, feedback |
+| `tooltip` | UI hints (requires `<TooltipProvider>` in layout — already set) |
+
+**Form dependencies:** `react-hook-form`, `zod`, `@hookform/resolvers` are installed.
+
 ## Environment Variables
 
 All Supabase credentials are configured as shared env vars:

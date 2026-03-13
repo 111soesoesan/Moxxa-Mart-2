@@ -1,0 +1,97 @@
+Phase 1: Customer Interface (The Discovery Engine)
+The primary goal is a low-friction entry point where users can browse and buy without immediate registration.
+
+Universal Browsing & Search:
+
+Global Category Tree: A centralized menu to browse by department (e.g., Electronics, Home, Fashion) across all shops.
+
+Keyword Search: Search items across the entire platform with shop-name attribution in results.
+
+Vendor-Specific Filters: Filter results by specific shops or vendor locations.
+
+Guest Commerce (Local Storage Logic):
+
+Persistent Cart: All cart actions for guest users are saved in the browser's Local Storage. The payload will store shop_id, product_id, variant_id, and quantity.
+
+Guest Checkout Toggle: Vendors can enable/disable "Allow Guest Purchase." If enabled, guests provide only a name, delivery address, and phone number to place an order.
+
+Validation Layer: Upon clicking "Checkout," the system verifies the Local Storage data against the live database to ensure prices and stock levels are current.
+
+Product Views:
+
+High-resolution image galleries.
+
+"Sold by [Shop Name]" badges with a link to the vendor’s profile.
+
+Item condition markers (New, Used - Good, etc.).
+
+Phase 2: Vendor Interface (The Store Builder)
+Designed for speed and ease of use, mimicking the listing style of social media marketplaces.
+
+Multi-Vendor Hub:
+
+A single user account can create and switch between multiple vendor profiles (e.g., a user can own both a "Tech Store" and a "Home Decor" store).
+
+Vendor Onboarding Requirements:
+
+Public Identity: Shop name, Logo, Cover photo, and a "About the Shop" bio.
+
+Contact & Fulfillment: Physical location (for local discovery), phone number, and a predefined "Delivery & Refund Policy" text.
+
+Payment Setup: Input fields for bank accounts or mobile wallet IDs where customers should send funds.
+
+Listing Creation (Marketplace Style):
+
+Multi-Image Upload: Up to 10 photos per item.
+
+Attributes: Title, Category, Price, Stock Count, and Condition (New, Used - Like New, Used - Fair).
+
+Publishing Control: Toggle to "List on Global Marketplace" or "Direct Link Only."
+
+Inspection Workflow:
+
+Vendors start in a "Draft" state.
+
+A "Request for Inspection" button is enabled once the profile and at least 3 products are completed.
+
+The shop remains "Pending" (invisible to the public) until an Admin approves it.
+
+Phase 3: Admin Interface (The Governance Hub)
+This is a secure back-office dashboard for platform moderators.
+
+Shop Inspection Queue:
+
+Moderation Feed: A list of all shops awaiting approval.
+
+Quality Audit: Admins can view the shop exactly as a customer would, checking for prohibited items or low-quality images.
+
+Approval/Rejection: One-click approval or rejection with a text field to send feedback to the vendor (e.g., "Please upload a clearer logo").
+
+Billing & Subscription Management:
+
+Proof Validation: A specialized feed for "Billing Proof Uploads." This displays screenshots of bank transfers/receipts uploaded by vendors for their shop plans.
+
+Manual Activation: Upon verifying the receipt, the Admin marks the payment as "Verified," which automatically extends the vendor's subscription or publishes the shop.
+
+Platform Oversight:
+
+Global view of total shops, active products, and reported listings.
+
+Phase 4: Order & Fulfillment Workflow
+A standardized process to bridge the gap between vendors and customers.
+
+Payment Proof Submission: Since checkout is managed by the vendor, the customer uploads their payment screenshot (Bank/Mobile Wallet) directly to the Order Detail page.
+
+Vendor Fulfillment:
+
+Vendors receive a "New Order" notification.
+
+They view the customer's payment proof and mark the order as "Paid."
+
+Status updates: Processing → Shipped → Delivered.
+
+Order History:
+
+Customers: A "My Orders" view (tracked by Phone/Email for guests or Account for logged-in users).
+
+Vendors: A sales ledger showing revenue per shop.
