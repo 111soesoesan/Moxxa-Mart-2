@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 // Allow Next/Image to optimize images served from Supabase Storage
-// Derive the hostname from NEXT_PUBLIC_SUPABASE_URL when available.
+// Derive the hostname from NEXT_PUBLIC_SUPABASE_URL when available
 const supabaseHostname = (() => {
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
