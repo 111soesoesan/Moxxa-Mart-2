@@ -2,21 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import type { TablesInsert, TablesUpdate } from "@/types/supabase";
 
-export type ProductFormData = {
-  name: string;
-  slug: string;
-  description?: string;
-  price: number;
-  stock: number;
-  category?: string;
-  condition?: string;
-  image_urls?: string[];
-  attributes?: Record<string, string>;
-  variants?: unknown[];
-  list_on_marketplace?: boolean;
-  is_active?: boolean;
-};
+// Keep form data aligned with Supabase generated types
+type ProductInsert = TablesInsert<"products">;
+type ProductUpdate = TablesUpdate<"products">;
+
+export type ProductFormData = Omit<ProductInsert, "shop_id">;
 
 export async function createProduct(shopId: string, data: ProductFormData) {
   const supabase = await createClient();
@@ -42,7 +34,7 @@ export async function createProduct(shopId: string, data: ProductFormData) {
   return { data: product };
 }
 
-export async function updateProduct(productId: string, data: Partial<ProductFormData>) {
+export async function updateProduct(productId: string, data: ProductUpdate) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
