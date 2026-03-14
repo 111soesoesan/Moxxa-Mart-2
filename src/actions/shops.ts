@@ -155,3 +155,14 @@ export async function getAllShopsStats() {
   const { count: pending } = await supabase.from("shops").select("*", { count: "exact", head: true }).eq("status", "pending");
   return { total: total ?? 0, active: active ?? 0, pending: pending ?? 0 };
 }
+
+export async function searchShops(query: string, limit = 8) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("shops")
+    .select("*")
+    .eq("status", "active")
+    .ilike("name", `%${query}%`)
+    .limit(limit);
+  return data ?? [];
+}

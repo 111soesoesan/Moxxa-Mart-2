@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useCartContext } from "@/context/CartContext";
-import { createOrder } from "@/actions/orders";
+import { createOrder, validateCart } from "@/actions/orders";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,13 +15,14 @@ import { formatCurrency } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ShoppingBag } from "lucide-react";
+import { ShoppingBag, AlertTriangle } from "lucide-react";
 
 export default function CheckoutPage() {
   const { cart, subtotal, clearCart } = useCartContext();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [validationIssues, setValidationIssues] = useState<string[]>([]);
 
   if (cart.items.length === 0) {
     return (
@@ -39,8 +40,21 @@ export default function CheckoutPage() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     setError(null);
+    setValidationIssues([]);
 
     startTransition(async () => {
+      const validation = await validateCart(cart.items);
+      if (!validation.valid) {
+        const messages = validation.issues.map((issue) => {
+          if (issue.type === "price_changed") return `"${issue.name}" price changed from ${formatCurrency(issue.oldPrice!)} to ${formatCurrency(issue.newPrice!)}.`;
+          if (issue.type === "out_of_stock") return `"${issue.name}" is out of stock.`;
+          if (issue.type === "insufficient_stock") return `"${issue.name}" only has ${issue.availableStock} left (you have ${issue.requestedQty}).`;
+          return `"${issue.name}" is no longer available.`;
+        });
+        setValidationIssues(messages);
+        return;
+      }
+
       const result = await createOrder({
         shop_id: cart.shop_id!,
         items: cart.items,
@@ -76,6 +90,16 @@ export default function CheckoutPage() {
               <CardHeader><CardTitle className="text-base">Your Details</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 {error && <Alert variant="destructive">{error}</Alert>}
+                {validationIssues.length > 0 && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4 mb-1" />
+                    <p className="font-medium mb-1">Your cart has changed — please review:</p>
+                    <ul className="text-sm list-disc list-inside space-y-0.5">
+                      {validationIssues.map((msg, i) => <li key={i}>{msg}</li>)}
+                    </ul>
+                    <p className="text-sm mt-2">Update your cart and try again.</p>
+                  </Alert>
+                )}
                 <div className="space-y-1.5">
                   <Label htmlFor="full_name">Full Name *</Label>
                   <Input id="full_name" name="full_name" placeholder="Juan dela Cruz" required />

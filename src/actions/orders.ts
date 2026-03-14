@@ -181,3 +181,62 @@ export async function getRecentOrdersStats() {
     .select("*", { count: "exact", head: true });
   return { total: count ?? 0 };
 }
+
+export type CartValidationResult = {
+  valid: boolean;
+  issues: Array<{
+    product_id: string;
+    name: string;
+    type: "price_changed" | "out_of_stock" | "insufficient_stock" | "unavailable";
+    oldPrice?: number;
+    newPrice?: number;
+    requestedQty?: number;
+    availableStock?: number;
+  }>;
+};
+
+export async function validateCart(items: CartItem[]): Promise<CartValidationResult> {
+  if (!items.length) return { valid: true, issues: [] };
+
+  const supabase = await createServiceClient();
+  const ids = items.map((i) => i.product_id);
+  const { data: products } = await supabase
+    .from("products")
+    .select("id, name, price, stock, is_active")
+    .in("id", ids);
+
+  const map = new Map((products ?? []).map((p) => [p.id, p]));
+  const issues: CartValidationResult["issues"] = [];
+
+  for (const item of items) {
+    const live = map.get(item.product_id);
+    if (!live || !live.is_active) {
+      issues.push({ product_id: item.product_id, name: item.name, type: "unavailable" });
+      continue;
+    }
+    if (live.stock === 0) {
+      issues.push({ product_id: item.product_id, name: item.name, type: "out_of_stock" });
+      continue;
+    }
+    if (live.stock < item.quantity) {
+      issues.push({
+        product_id: item.product_id,
+        name: item.name,
+        type: "insufficient_stock",
+        requestedQty: item.quantity,
+        availableStock: live.stock,
+      });
+    }
+    if (Math.abs(live.price - item.price) > 0.01) {
+      issues.push({
+        product_id: item.product_id,
+        name: item.name,
+        type: "price_changed",
+        oldPrice: item.price,
+        newPrice: live.price,
+      });
+    }
+  }
+
+  return { valid: issues.length === 0, issues };
+}
