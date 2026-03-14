@@ -77,8 +77,8 @@ export default function OnboardingPage() {
         payment_info: paymentInfo,
       });
 
-      if (result.error) {
-        form.setError("root", { message: result.error });
+      if (!result.data) {
+        form.setError("root", { message: result.error ?? "Failed to create shop" });
         return;
       }
       toast.success("Shop created! Add products to request inspection.");

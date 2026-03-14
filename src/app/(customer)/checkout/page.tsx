@@ -93,8 +93,9 @@ export default function CheckoutPage() {
         notes: values.notes || undefined,
       });
 
-      if (result.error) {
-        form.setError("root", { message: result.error });
+      // Guard against undefined data to satisfy strict typing
+      if (!result.data) {
+        form.setError("root", { message: result.error ?? "Failed to create order" });
         return;
       }
 
