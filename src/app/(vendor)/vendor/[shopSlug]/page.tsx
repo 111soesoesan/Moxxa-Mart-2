@@ -13,11 +13,10 @@ import { revalidatePath } from "next/cache";
 
 type Props = { params: Promise<{ shopSlug: string }> };
 
-async function handleRequestInspection(shopId: string, slug: string) {
+async function handleRequestInspection(shopId: string, slug: string, _formData: FormData) {
   "use server";
   const result = await requestInspection(shopId);
   revalidatePath(`/vendor/${slug}`);
-  return result;
 }
 
 export default async function ShopDashboardPage({ params }: Props) {
