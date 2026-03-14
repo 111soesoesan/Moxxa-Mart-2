@@ -1,29 +1,46 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import Link from "next/link";
 import { signIn } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert } from "@/components/ui/alert";
+import { Field, FieldLabel, FieldControl, FieldError } from "@/components/ui/field";
 import { Store } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
+const schema = z.object({
+  email: z.string().email("Enter a valid email address"),
+  password: z.string().min(1, "Password is required"),
+});
+
+type LoginSchema = z.infer<typeof schema>;
+
 function LoginForm() {
-  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const searchParams = useSearchParams();
   const authError = searchParams.get("error");
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+  const form = useForm<LoginSchema>({
+    resolver: zodResolver(schema),
+    defaultValues: { email: "", password: "" },
+  });
+
+  const rootError = form.formState.errors.root?.message;
+
+  const onSubmit = (values: LoginSchema) => {
+    const fd = new FormData();
+    fd.set("email", values.email);
+    fd.set("password", values.password);
     startTransition(async () => {
-      const result = await signIn(formData);
-      if (result?.error) setError(result.error);
+      const result = await signIn(fd);
+      if (result?.error) form.setError("root", { message: result.error });
     });
   };
 
@@ -39,20 +56,38 @@ function LoginForm() {
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent>
-          {(error || authError) && (
+          {(rootError || authError) && (
             <Alert variant="destructive" className="mb-4 text-sm">
-              {error ?? "Authentication failed. Please try again."}
+              {rootError ?? "Authentication failed. Please try again."}
             </Alert>
           )}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" placeholder="you@example.com" required />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" name="password" type="password" placeholder="••••••••" required />
-            </div>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <Field error={form.formState.errors.email?.message}>
+              <FieldLabel required>Email</FieldLabel>
+              <FieldControl>
+                <Input
+                  type="email"
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                  {...form.register("email")}
+                />
+              </FieldControl>
+              <FieldError />
+            </Field>
+
+            <Field error={form.formState.errors.password?.message}>
+              <FieldLabel required>Password</FieldLabel>
+              <FieldControl>
+                <Input
+                  type="password"
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  {...form.register("password")}
+                />
+              </FieldControl>
+              <FieldError />
+            </Field>
+
             <Button type="submit" className="w-full" disabled={isPending}>
               {isPending ? "Signing in…" : "Sign In"}
             </Button>
@@ -60,7 +95,9 @@ function LoginForm() {
         </CardContent>
         <CardFooter className="justify-center text-sm text-muted-foreground">
           Don&apos;t have an account?{" "}
-          <Link href="/signup" className="text-primary font-medium ml-1 hover:underline">Sign up</Link>
+          <Link href="/signup" className="text-primary font-medium ml-1 hover:underline">
+            Sign up
+          </Link>
         </CardFooter>
       </Card>
     </div>

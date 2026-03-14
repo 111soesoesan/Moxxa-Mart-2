@@ -1,28 +1,54 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { useCartContext } from "@/context/CartContext";
 import { createOrder, validateCart } from "@/actions/orders";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Alert } from "@/components/ui/alert";
+import { Field, FieldLabel, FieldControl, FieldError, FieldDescription } from "@/components/ui/field";
 import { formatCurrency } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { toast } from "sonner";
 import { ShoppingBag, AlertTriangle } from "lucide-react";
 
+const schema = z.object({
+  full_name: z.string().min(1, "Full name is required"),
+  phone: z.string().min(1, "Phone number is required"),
+  email: z.union([z.string().email("Enter a valid email"), z.literal("")]).optional(),
+  address: z.string().min(10, "Please enter your complete delivery address"),
+  notes: z.string().optional(),
+});
+
+type CheckoutSchema = z.infer<typeof schema>;
+
 export default function CheckoutPage() {
   const { cart, subtotal, clearCart } = useCartContext();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const [validationIssues, setValidationIssues] = useState<string[]>([]);
+
+  const form = useForm<CheckoutSchema>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      full_name: "",
+      phone: "",
+      email: "",
+      address: "",
+      notes: "",
+    },
+  });
+
+  const errors = form.formState.errors;
+  const rootError = errors.root?.message;
 
   if (cart.items.length === 0) {
     return (
@@ -36,19 +62,19 @@ export default function CheckoutPage() {
     );
   }
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    setError(null);
+  const onSubmit = (values: CheckoutSchema) => {
     setValidationIssues([]);
 
     startTransition(async () => {
       const validation = await validateCart(cart.items);
       if (!validation.valid) {
         const messages = validation.issues.map((issue) => {
-          if (issue.type === "price_changed") return `"${issue.name}" price changed from ${formatCurrency(issue.oldPrice!)} to ${formatCurrency(issue.newPrice!)}.`;
-          if (issue.type === "out_of_stock") return `"${issue.name}" is out of stock.`;
-          if (issue.type === "insufficient_stock") return `"${issue.name}" only has ${issue.availableStock} left (you have ${issue.requestedQty}).`;
+          if (issue.type === "price_changed")
+            return `"${issue.name}" price changed from ${formatCurrency(issue.oldPrice!)} to ${formatCurrency(issue.newPrice!)}.`;
+          if (issue.type === "out_of_stock")
+            return `"${issue.name}" is out of stock.`;
+          if (issue.type === "insufficient_stock")
+            return `"${issue.name}" only has ${issue.availableStock} left (you have ${issue.requestedQty}).`;
           return `"${issue.name}" is no longer available.`;
         });
         setValidationIssues(messages);
@@ -59,16 +85,16 @@ export default function CheckoutPage() {
         shop_id: cart.shop_id!,
         items: cart.items,
         customer: {
-          full_name: fd.get("full_name") as string,
-          phone: fd.get("phone") as string,
-          address: fd.get("address") as string,
-          email: fd.get("email") as string || undefined,
+          full_name: values.full_name,
+          phone: values.phone,
+          address: values.address,
+          email: values.email || undefined,
         },
-        notes: fd.get("notes") as string || undefined,
+        notes: values.notes || undefined,
       });
 
       if (result.error) {
-        setError(result.error);
+        form.setError("root", { message: result.error });
         return;
       }
 
@@ -78,18 +104,16 @@ export default function CheckoutPage() {
     });
   };
 
-  const total = subtotal;
-
   return (
     <div className="container mx-auto px-4 py-10 max-w-4xl">
       <h1 className="text-2xl font-bold mb-8">Checkout</h1>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={form.handleSubmit(onSubmit)}>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
           <div className="lg:col-span-3 space-y-6">
             <Card>
               <CardHeader><CardTitle className="text-base">Your Details</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                {error && <Alert variant="destructive">{error}</Alert>}
+                {rootError && <Alert variant="destructive">{rootError}</Alert>}
                 {validationIssues.length > 0 && (
                   <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4 mb-1" />
@@ -100,26 +124,71 @@ export default function CheckoutPage() {
                     <p className="text-sm mt-2">Update your cart and try again.</p>
                   </Alert>
                 )}
-                <div className="space-y-1.5">
-                  <Label htmlFor="full_name">Full Name *</Label>
-                  <Input id="full_name" name="full_name" placeholder="Juan dela Cruz" required />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="phone">Phone Number *</Label>
-                  <Input id="phone" name="phone" type="tel" placeholder="09XX XXX XXXX" required />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="email">Email (optional)</Label>
-                  <Input id="email" name="email" type="email" placeholder="for order updates" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="address">Delivery Address *</Label>
-                  <Textarea id="address" name="address" placeholder="House no., Street, Barangay, City/Municipality, Province" rows={3} required />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="notes">Order Notes (optional)</Label>
-                  <Textarea id="notes" name="notes" placeholder="Special instructions for the vendor" rows={2} />
-                </div>
+
+                <Field error={errors.full_name?.message}>
+                  <FieldLabel required>Full Name</FieldLabel>
+                  <FieldControl>
+                    <Input
+                      placeholder="Juan dela Cruz"
+                      autoComplete="name"
+                      {...form.register("full_name")}
+                    />
+                  </FieldControl>
+                  <FieldError />
+                </Field>
+
+                <Field error={errors.phone?.message}>
+                  <FieldLabel required>Phone Number</FieldLabel>
+                  <FieldControl>
+                    <Input
+                      type="tel"
+                      placeholder="09XX XXX XXXX"
+                      autoComplete="tel"
+                      {...form.register("phone")}
+                    />
+                  </FieldControl>
+                  <FieldError />
+                </Field>
+
+                <Field error={errors.email?.message}>
+                  <FieldLabel>Email</FieldLabel>
+                  <FieldControl>
+                    <Input
+                      type="email"
+                      placeholder="for order updates"
+                      autoComplete="email"
+                      {...form.register("email")}
+                    />
+                  </FieldControl>
+                  <FieldDescription>Optional — we'll send order updates here.</FieldDescription>
+                  <FieldError />
+                </Field>
+
+                <Field error={errors.address?.message}>
+                  <FieldLabel required>Delivery Address</FieldLabel>
+                  <FieldControl>
+                    <Textarea
+                      placeholder="House no., Street, Barangay, City/Municipality, Province"
+                      rows={3}
+                      autoComplete="street-address"
+                      {...form.register("address")}
+                    />
+                  </FieldControl>
+                  <FieldError />
+                </Field>
+
+                <Field error={errors.notes?.message}>
+                  <FieldLabel>Order Notes</FieldLabel>
+                  <FieldControl>
+                    <Textarea
+                      placeholder="Special instructions for the vendor"
+                      rows={2}
+                      {...form.register("notes")}
+                    />
+                  </FieldControl>
+                  <FieldDescription>Optional — share any special requests.</FieldDescription>
+                  <FieldError />
+                </Field>
               </CardContent>
             </Card>
           </div>
@@ -133,19 +202,23 @@ export default function CheckoutPage() {
                     <div className="relative w-12 h-12 rounded bg-muted shrink-0 overflow-hidden">
                       {item.image_url ? (
                         <Image src={item.image_url} alt={item.name} fill className="object-cover" sizes="48px" />
-                      ) : <div className="flex h-full items-center justify-center">📦</div>}
+                      ) : (
+                        <div className="flex h-full items-center justify-center">📦</div>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium line-clamp-1">{item.name}</p>
                       <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
                     </div>
-                    <p className="text-sm font-semibold shrink-0">{formatCurrency(item.price * item.quantity)}</p>
+                    <p className="text-sm font-semibold shrink-0">
+                      {formatCurrency(item.price * item.quantity)}
+                    </p>
                   </div>
                 ))}
                 <Separator />
                 <div className="flex justify-between font-semibold">
                   <span>Total</span>
-                  <span className="text-primary">{formatCurrency(total)}</span>
+                  <span className="text-primary">{formatCurrency(subtotal)}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Payment is manual. You will receive the vendor&apos;s payment details on the order page.

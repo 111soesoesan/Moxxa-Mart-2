@@ -1,0 +1,129 @@
+The codebase currently uses the older shadcn form pattern:
+
+<Form>
+<FormField>
+<FormItem>
+<FormLabel>
+<FormControl>
+<FormMessage>
+
+I want to refactor the entire project to use the new shadcn "Field" component pattern recommended in the latest documentation.
+
+Goal:
+Replace all old form abstractions with the new composable Field API while keeping full compatibility with React Hook Form and Zod.
+
+Requirements:
+
+1. Replace old components
+
+Old pattern example:
+
+<Form {...form}>
+  <form onSubmit={form.handleSubmit(onSubmit)}>
+    <FormField
+      control={form.control}
+      name="name"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Shop Name</FormLabel>
+          <FormControl>
+            <Input placeholder="Enter shop name" {...field} />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  </form>
+</Form>
+
+New pattern should use Field components.
+
+2. New Field pattern
+
+Use shadcn Field primitives such as:
+
+Field
+FieldLabel
+FieldDescription
+FieldError
+FieldGroup (optional)
+
+Example desired pattern:
+
+<Field>
+  <FieldLabel>Shop Name</FieldLabel>
+  <Input {...field} placeholder="Enter shop name" />
+  <FieldDescription>
+    This will be the public name of your shop
+  </FieldDescription>
+  <FieldError />
+</Field>
+
+3. React Hook Form integration
+
+Maintain useForm and Controller usage where necessary.
+
+Example:
+
+const form = useForm({
+  resolver: zodResolver(schema),
+  defaultValues: {...}
+})
+
+Inputs should stay fully controlled by React Hook Form.
+
+Use:
+
+Controller
+register
+or field props from Controller render.
+
+4. Validation errors
+
+All validation errors from React Hook Form should be passed to:
+
+FieldError
+
+Example:
+
+<FieldError>{form.formState.errors.name?.message}</FieldError>
+
+5. Maintain accessibility
+
+Ensure:
+
+label is properly associated
+aria-invalid used when errors exist
+proper focus behavior
+
+6. Code consistency
+
+Apply the new Field pattern consistently across:
+
+Auth forms
+Shop onboarding form
+Product creation forms
+Settings forms
+Billing forms
+
+7. Improve form layout
+
+Where appropriate:
+
+Use FieldGroup for grouped inputs
+Use grid layouts for multi column forms
+Add FieldDescription for helper text
+
+8. Do NOT break the following
+
+React Hook Form validation
+Zod schema validation
+Form submission logic
+API mutations
+Supabase actions
+
+9. Provide output as:
+
+Refactored example form
+Reusable form field component patterns
+Recommended folder structure for forms

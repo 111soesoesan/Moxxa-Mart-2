@@ -1,19 +1,35 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useEffect, useTransition } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useParams } from "next/navigation";
 import { getMyShops, updateShop, requestInspection } from "@/actions/shops";
-import { slugify } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Field, FieldLabel, FieldControl, FieldError, FieldGroup } from "@/components/ui/field";
 import { toast } from "sonner";
 import { ClipboardCheck } from "lucide-react";
+import { useState } from "react";
+
+const schema = z.object({
+  name: z.string().min(1, "Shop name is required"),
+  description: z.string().optional(),
+  phone: z.string().optional(),
+  location: z.string().optional(),
+  delivery_policy: z.string().optional(),
+  payment_bank: z.string().optional(),
+  payment_wallet: z.string().optional(),
+  allow_guest_purchase: z.boolean(),
+});
+
+type SettingsSchema = z.infer<typeof schema>;
 
 type Shop = Awaited<ReturnType<typeof getMyShops>>[number];
 
@@ -22,46 +38,65 @@ export default function ShopSettingsPage() {
   const [shop, setShop] = useState<Shop | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const [allowGuest, setAllowGuest] = useState(true);
-  const [paymentBank, setPaymentBank] = useState("");
-  const [paymentWallet, setPaymentWallet] = useState("");
+
+  const form = useForm<SettingsSchema>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      name: "",
+      description: "",
+      phone: "",
+      location: "",
+      delivery_policy: "",
+      payment_bank: "",
+      payment_wallet: "",
+      allow_guest_purchase: true,
+    },
+  });
+
+  const errors = form.formState.errors;
+  const rootError = errors.root?.message;
 
   useEffect(() => {
     getMyShops().then((shops) => {
       const s = shops.find((s) => s.slug === shopSlug);
       if (s) {
         setShop(s);
-        setAllowGuest(s.allow_guest_purchase);
         const pi = s.payment_info as Record<string, string> | null;
-        if (pi) {
-          setPaymentBank(pi["Bank Transfer"] ?? "");
-          setPaymentWallet(pi["Mobile Wallet"] ?? "");
-        }
+        form.reset({
+          name: s.name,
+          description: s.description ?? "",
+          phone: s.phone ?? "",
+          location: s.location ?? "",
+          delivery_policy: s.delivery_policy ?? "",
+          payment_bank: pi?.["Bank Transfer"] ?? "",
+          payment_wallet: pi?.["Mobile Wallet"] ?? "",
+          allow_guest_purchase: s.allow_guest_purchase,
+        });
       }
       setLoading(false);
     });
-  }, [shopSlug]);
+  }, [shopSlug, form]);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const onSubmit = (values: SettingsSchema) => {
     if (!shop) return;
-    const fd = new FormData(e.currentTarget);
     const paymentInfo: Record<string, string> = {};
-    if (paymentBank) paymentInfo["Bank Transfer"] = paymentBank;
-    if (paymentWallet) paymentInfo["Mobile Wallet"] = paymentWallet;
+    if (values.payment_bank) paymentInfo["Bank Transfer"] = values.payment_bank;
+    if (values.payment_wallet) paymentInfo["Mobile Wallet"] = values.payment_wallet;
 
     startTransition(async () => {
       const result = await updateShop(shop.id, {
-        name: fd.get("name") as string,
-        description: fd.get("description") as string,
-        phone: fd.get("phone") as string,
-        location: fd.get("location") as string,
-        delivery_policy: fd.get("delivery_policy") as string,
-        allow_guest_purchase: allowGuest,
+        name: values.name,
+        description: values.description,
+        phone: values.phone,
+        location: values.location,
+        delivery_policy: values.delivery_policy,
+        allow_guest_purchase: values.allow_guest_purchase,
         payment_info: paymentInfo,
       });
-      if (result.error) { setError(result.error); return; }
+      if (result.error) {
+        form.setError("root", { message: result.error });
+        return;
+      }
       toast.success("Settings saved.");
     });
   };
@@ -75,7 +110,13 @@ export default function ShopSettingsPage() {
     });
   };
 
-  if (loading) return <div className="container mx-auto px-4 py-8 max-w-2xl space-y-4"><Skeleton className="h-48 w-full" /></div>;
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-2xl space-y-4">
+        <Skeleton className="h-48 w-full" />
+      </div>
+    );
+  }
   if (!shop) return null;
 
   return (
@@ -91,52 +132,79 @@ export default function ShopSettingsPage() {
         </Alert>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {error && <Alert variant="destructive">{error}</Alert>}
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        {rootError && <Alert variant="destructive">{rootError}</Alert>}
 
         <Card>
           <CardHeader><CardTitle className="text-base">Identity</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Shop Name</Label>
-              <Input name="name" defaultValue={shop.name} required />
-            </div>
-            <div className="space-y-1.5">
-              <Label>About</Label>
-              <Textarea name="description" defaultValue={shop.description ?? ""} rows={3} />
-            </div>
+            <Field error={errors.name?.message}>
+              <FieldLabel required>Shop Name</FieldLabel>
+              <FieldControl>
+                <Input {...form.register("name")} />
+              </FieldControl>
+              <FieldError />
+            </Field>
+
+            <Field error={errors.description?.message}>
+              <FieldLabel>About</FieldLabel>
+              <FieldControl>
+                <Textarea rows={3} {...form.register("description")} />
+              </FieldControl>
+              <FieldError />
+            </Field>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader><CardTitle className="text-base">Contact & Fulfillment</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Phone</Label>
-              <Input name="phone" type="tel" defaultValue={shop.phone ?? ""} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Location</Label>
-              <Input name="location" defaultValue={shop.location ?? ""} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Delivery & Refund Policy</Label>
-              <Textarea name="delivery_policy" defaultValue={shop.delivery_policy ?? ""} rows={4} />
-            </div>
+            <Field error={errors.phone?.message}>
+              <FieldLabel>Phone</FieldLabel>
+              <FieldControl>
+                <Input type="tel" {...form.register("phone")} />
+              </FieldControl>
+              <FieldError />
+            </Field>
+
+            <Field error={errors.location?.message}>
+              <FieldLabel>Location</FieldLabel>
+              <FieldControl>
+                <Input {...form.register("location")} />
+              </FieldControl>
+              <FieldError />
+            </Field>
+
+            <Field error={errors.delivery_policy?.message}>
+              <FieldLabel>Delivery & Refund Policy</FieldLabel>
+              <FieldControl>
+                <Textarea rows={4} {...form.register("delivery_policy")} />
+              </FieldControl>
+              <FieldError />
+            </Field>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader><CardTitle className="text-base">Payment Details</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Bank Account Number</Label>
-              <Input value={paymentBank} onChange={(e) => setPaymentBank(e.target.value)} placeholder="Bank name + Account number" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Mobile Wallet (GCash / Maya)</Label>
-              <Input value={paymentWallet} onChange={(e) => setPaymentWallet(e.target.value)} placeholder="09XX XXX XXXX" />
-            </div>
+            <FieldGroup>
+              <Field error={errors.payment_bank?.message}>
+                <FieldLabel>Bank Account</FieldLabel>
+                <FieldControl>
+                  <Input placeholder="Bank name + Account number" {...form.register("payment_bank")} />
+                </FieldControl>
+                <FieldError />
+              </Field>
+
+              <Field error={errors.payment_wallet?.message}>
+                <FieldLabel>Mobile Wallet (GCash / Maya)</FieldLabel>
+                <FieldControl>
+                  <Input placeholder="09XX XXX XXXX" {...form.register("payment_wallet")} />
+                </FieldControl>
+                <FieldError />
+              </Field>
+            </FieldGroup>
           </CardContent>
         </Card>
 
@@ -147,7 +215,13 @@ export default function ShopSettingsPage() {
                 <p className="font-medium text-sm">Allow Guest Checkout</p>
                 <p className="text-xs text-muted-foreground">Let customers buy without an account</p>
               </div>
-              <Switch checked={allowGuest} onCheckedChange={setAllowGuest} />
+              <Controller
+                control={form.control}
+                name="allow_guest_purchase"
+                render={({ field }) => (
+                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                )}
+              />
             </div>
           </CardContent>
         </Card>

@@ -67,6 +67,30 @@ npm run build    # Production build
 npm run start    # Production server on port 5000
 ```
 
+## Form Pattern
+
+All forms use the new `Field` component pattern from `src/components/ui/field.tsx`:
+
+```tsx
+<Field error={form.formState.errors.email?.message}>
+  <FieldLabel required>Email</FieldLabel>
+  <FieldControl>
+    <Input type="email" {...form.register("email")} />
+  </FieldControl>
+  <FieldDescription>Helper text here.</FieldDescription>
+  <FieldError />
+</Field>
+```
+
+- **`Field`** — context provider with auto-generated id, error state, aria ids
+- **`FieldLabel`** — `<label>` with auto `htmlFor`, optional `required` asterisk, red when error
+- **`FieldControl`** — `Slot` wrapper that injects `id`, `aria-invalid`, `aria-describedby` onto its child input
+- **`FieldDescription`** — muted helper text (linked via `aria-describedby`)
+- **`FieldError`** — red error message (reads from context or accepts children)
+- **`FieldGroup`** — responsive grid for side-by-side fields (default 2-col)
+
+All forms use `react-hook-form` + `zodResolver` + Zod v4 schemas. `Controller` is used for `Select` and `Switch` (controlled components). Root-level errors use `form.setError("root", ...)`.
+
 ## Notes
 
 - `src/proxy.ts` is the Next.js 16 middleware file (session refresh) — do not rename to middleware.ts

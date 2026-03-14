@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useTransition } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useParams, useRouter } from "next/navigation";
 import { getShopProducts, updateProduct, deleteProduct } from "@/actions/products";
 import { uploadProductImage } from "@/lib/supabase/storage";
 import { ImageUpload } from "@/components/shared/ImageUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,29 +17,51 @@ import { Alert } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Field, FieldLabel, FieldControl, FieldError, FieldGroup } from "@/components/ui/field";
 import { CATEGORIES, CONDITIONS } from "@/lib/constants";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
+import { useState } from "react";
+
+const schema = z.object({
+  name: z.string().min(1, "Product title is required"),
+  description: z.string().optional(),
+  price: z.coerce.number().min(0, "Price must be 0 or more"),
+  stock: z.coerce.number().int("Stock must be a whole number").min(0, "Stock must be 0 or more"),
+  category: z.string().optional(),
+  condition: z.string().min(1, "Condition is required"),
+  list_on_marketplace: z.boolean(),
+  is_active: z.boolean(),
+});
+
+type EditProductSchema = z.infer<typeof schema>;
 
 export default function EditProductPage() {
   const { shopSlug, productId } = useParams<{ shopSlug: string; productId: string }>();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const [productName, setProductName] = useState("");
-  const [description, setDescription] = useState("");
-  const [price, setPrice] = useState("");
-  const [stock, setStock] = useState("");
-  const [category, setCategory] = useState("");
-  const [condition, setCondition] = useState("new");
   const [imageUrls, setImageUrls] = useState<string[]>([]);
-  const [listOnMarket, setListOnMarket] = useState(true);
-  const [isActive, setIsActive] = useState(true);
+
+  const form = useForm<EditProductSchema>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      name: "",
+      description: "",
+      price: 0,
+      stock: 0,
+      category: "",
+      condition: "new",
+      list_on_marketplace: true,
+      is_active: true,
+    },
+  });
+
+  const errors = form.formState.errors;
+  const rootError = errors.root?.message;
 
   useEffect(() => {
-    getShopProducts("").then(async () => {
+    (async () => {
       const { getMyShops } = await import("@/actions/shops");
       const shops = await getMyShops();
       const shop = shops.find((s) => s.slug === shopSlug);
@@ -47,41 +71,43 @@ export default function EditProductPage() {
       const product = products.find((p) => p.id === productId);
       if (!product) { setLoading(false); return; }
 
-      setProductName(product.name);
-      setDescription(product.description ?? "");
-      setPrice(String(product.price));
-      setStock(String(product.stock));
-      setCategory((product as { category?: string | null }).category ?? "");
-      setCondition(product.condition ?? "new");
       setImageUrls(product.image_urls ?? []);
-      setListOnMarket(product.list_on_marketplace ?? true);
-      setIsActive(product.is_active ?? true);
+      form.reset({
+        name: product.name,
+        description: product.description ?? "",
+        price: Number(product.price),
+        stock: product.stock,
+        category: (product as { category?: string | null }).category ?? "",
+        condition: product.condition ?? "new",
+        list_on_marketplace: product.list_on_marketplace ?? true,
+        is_active: product.is_active ?? true,
+      });
       setLoading(false);
-    });
-  }, [shopSlug, productId]);
+    })();
+  }, [shopSlug, productId, form]);
 
   const handleImageUpload = async (file: File, index: number) => {
     return uploadProductImage(file, shopSlug, productId, index);
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError(null);
-
+  const onSubmit = (values: EditProductSchema) => {
     startTransition(async () => {
       const result = await updateProduct(productId, {
-        name: productName,
-        description,
-        price: parseFloat(price),
-        stock: parseInt(stock, 10),
-        category: category || undefined,
-        condition,
+        name: values.name,
+        description: values.description,
+        price: values.price,
+        stock: values.stock,
+        category: values.category || undefined,
+        condition: values.condition,
         image_urls: imageUrls,
-        list_on_marketplace: listOnMarket,
-        is_active: isActive,
+        list_on_marketplace: values.list_on_marketplace,
+        is_active: values.is_active,
       });
 
-      if (result.error) { setError(result.error); return; }
+      if (result.error) {
+        form.setError("root", { message: result.error });
+        return;
+      }
       toast.success("Product updated!");
       router.push(`/vendor/${shopSlug}/products`);
     });
@@ -125,7 +151,10 @@ export default function EditProductPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              <AlertDialogAction
+                onClick={handleDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
                 Delete
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -133,8 +162,8 @@ export default function EditProductPage() {
         </AlertDialog>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {error && <Alert variant="destructive">{error}</Alert>}
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        {rootError && <Alert variant="destructive">{rootError}</Alert>}
 
         <Card>
           <CardHeader><CardTitle className="text-base">Photos (up to 10)</CardTitle></CardHeader>
@@ -151,77 +180,89 @@ export default function EditProductPage() {
         <Card>
           <CardHeader><CardTitle className="text-base">Details</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="name">Title *</Label>
-              <Input
-                id="name"
-                value={productName}
-                onChange={(e) => setProductName(e.target.value)}
-                placeholder="Product name"
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe your product…"
-                rows={4}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="price">Price (₱) *</Label>
-                <Input
-                  id="price"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  required
+            <Field error={errors.name?.message}>
+              <FieldLabel required>Title</FieldLabel>
+              <FieldControl>
+                <Input placeholder="Product name" {...form.register("name")} />
+              </FieldControl>
+              <FieldError />
+            </Field>
+
+            <Field error={errors.description?.message}>
+              <FieldLabel>Description</FieldLabel>
+              <FieldControl>
+                <Textarea
+                  placeholder="Describe your product…"
+                  rows={4}
+                  {...form.register("description")}
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="stock">Stock Count *</Label>
-                <Input
-                  id="stock"
-                  value={stock}
-                  onChange={(e) => setStock(e.target.value)}
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  required
+              </FieldControl>
+              <FieldError />
+            </Field>
+
+            <FieldGroup>
+              <Field error={errors.price?.message}>
+                <FieldLabel required>Price (₱)</FieldLabel>
+                <FieldControl>
+                  <Input type="number" step="0.01" min="0" placeholder="0.00" {...form.register("price")} />
+                </FieldControl>
+                <FieldError />
+              </Field>
+
+              <Field error={errors.stock?.message}>
+                <FieldLabel required>Stock Count</FieldLabel>
+                <FieldControl>
+                  <Input type="number" min="0" placeholder="0" {...form.register("stock")} />
+                </FieldControl>
+                <FieldError />
+              </Field>
+            </FieldGroup>
+
+            <FieldGroup>
+              <Field error={errors.category?.message}>
+                <FieldLabel>Category</FieldLabel>
+                <Controller
+                  control={form.control}
+                  name="category"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger aria-invalid={!!errors.category}>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CATEGORIES.map((c) => (
+                          <SelectItem key={c.slug} value={c.slug}>
+                            {c.icon} {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Category</Label>
-                <Select value={category} onValueChange={setCategory}>
-                  <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIES.map((c) => (
-                      <SelectItem key={c.slug} value={c.slug}>{c.icon} {c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Condition *</Label>
-                <Select value={condition} onValueChange={setCondition}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {CONDITIONS.map((c) => (
-                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+                <FieldError />
+              </Field>
+
+              <Field error={errors.condition?.message}>
+                <FieldLabel required>Condition</FieldLabel>
+                <Controller
+                  control={form.control}
+                  name="condition"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger aria-invalid={!!errors.condition}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CONDITIONS.map((c) => (
+                          <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <FieldError />
+              </Field>
+            </FieldGroup>
           </CardContent>
         </Card>
 
@@ -231,16 +272,32 @@ export default function EditProductPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium text-sm">List on Global Marketplace</p>
-                <p className="text-xs text-muted-foreground">Show in browse and search. Turn off for direct-link only.</p>
+                <p className="text-xs text-muted-foreground">
+                  Show in browse and search. Turn off for direct-link only.
+                </p>
               </div>
-              <Switch checked={listOnMarket} onCheckedChange={setListOnMarket} />
+              <Controller
+                control={form.control}
+                name="list_on_marketplace"
+                render={({ field }) => (
+                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                )}
+              />
             </div>
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium text-sm">Active</p>
-                <p className="text-xs text-muted-foreground">Inactive products are hidden from all public views.</p>
+                <p className="text-xs text-muted-foreground">
+                  Inactive products are hidden from all public views.
+                </p>
               </div>
-              <Switch checked={isActive} onCheckedChange={setIsActive} />
+              <Controller
+                control={form.control}
+                name="is_active"
+                render={({ field }) => (
+                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                )}
+              />
             </div>
           </CardContent>
         </Card>
