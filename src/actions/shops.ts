@@ -56,13 +56,12 @@ export async function requestInspection(shopId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
-  const { data: productCount } = await supabase
+  const { count: productCount } = await supabase
     .from("products")
     .select("id", { count: "exact", head: true })
     .eq("shop_id", shopId);
 
-  const count = (productCount as unknown as number) ?? 0;
-  if (count < 3) return { error: "You need at least 3 products before requesting inspection." };
+  if ((productCount ?? 0) < 3) return { error: "You need at least 3 products before requesting inspection." };
 
   const { error } = await supabase
     .from("shops")
