@@ -44,10 +44,10 @@ export type AdminProfile = {
 type Props = { profile: AdminProfile };
 
 const NAV_ITEMS = [
-  { href: "/admin",         label: "Overview",  icon: LayoutDashboard, exact: true },
-  { href: "/admin/shops",   label: "Shops",     icon: Store },
-  { href: "/admin/billing", label: "Billing",   icon: CreditCard },
-  { href: "/admin/orders",  label: "Orders",    icon: ShoppingBag },
+  { href: '/admin',         label: 'Overview',  icon: LayoutDashboard, exact: true },
+  { href: '/admin/shops',   label: 'Shops',     icon: Store,         exact: false },
+  { href: '/admin/billing', label: 'Billing',   icon: CreditCard,    exact: false },
+  { href: '/admin/orders',  label: 'Orders',    icon: ShoppingBag,   exact: false },
 ] as const;
 
 export function AdminSidebar({ profile }: Props) {

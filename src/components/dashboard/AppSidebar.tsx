@@ -62,10 +62,10 @@ type Props = {
 
 const NAV_ITEMS = [
   { segment: null,         label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { segment: "products",  label: "Products",  icon: Package },
-  { segment: "orders",    label: "Orders",    icon: ShoppingBag },
-  { segment: "billing",   label: "Billing",   icon: CreditCard },
-  { segment: "settings",  label: "Settings",  icon: Settings },
+  { segment: "products",  label: "Products",  icon: Package , exact: false },
+  { segment: "orders",    label: "Orders",    icon: ShoppingBag , exact: false },
+  { segment: "billing",   label: "Billing",   icon: CreditCard , exact: false },
+  { segment: "settings",  label: "Settings",  icon: Settings , exact: false },
 ] as const;
 
 const STATUS_COLORS: Record<string, string> = {
