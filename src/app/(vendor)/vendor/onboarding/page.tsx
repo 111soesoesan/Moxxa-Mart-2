@@ -87,148 +87,152 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-10 max-w-2xl">
-      <h1 className="text-2xl font-bold mb-2">Open Your Shop</h1>
-      <p className="text-muted-foreground mb-8">Fill in your shop details. You can always edit them later.</p>
+    <div className="min-h-screen bg-muted/20">
+      <div className="container mx-auto px-4 py-10 max-w-2xl">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold mb-1">Open Your Shop</h1>
+          <p className="text-muted-foreground">Fill in your shop details. You can always edit them later.</p>
+        </div>
 
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {rootError && <Alert variant="destructive">{rootError}</Alert>}
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {rootError && <Alert variant="destructive">{rootError}</Alert>}
 
-        <Card>
-          <CardHeader><CardTitle className="text-base">Public Identity</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <Field error={errors.name?.message}>
-              <FieldLabel required>Shop Name</FieldLabel>
-              <FieldControl>
-                <Input
-                  placeholder="My Awesome Shop"
-                  value={form.watch("name")}
-                  onChange={(e) => handleNameChange(e.target.value)}
-                />
-              </FieldControl>
-              <FieldError />
-            </Field>
-
-            <Field error={errors.slug?.message}>
-              <FieldLabel required>Shop URL</FieldLabel>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground shrink-0">moxxa.com/shop/</span>
+          <Card>
+            <CardHeader><CardTitle className="text-base">Public Identity</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <Field error={errors.name?.message}>
+                <FieldLabel required>Shop Name</FieldLabel>
                 <FieldControl>
                   <Input
-                    placeholder="my-awesome-shop"
-                    {...form.register("slug")}
-                    onChange={(e) =>
-                      form.setValue("slug", slugify(e.target.value), { shouldValidate: true })
-                    }
+                    placeholder="My Awesome Shop"
+                    value={form.watch("name")}
+                    onChange={(e) => handleNameChange(e.target.value)}
                   />
                 </FieldControl>
-              </div>
-              <FieldDescription>This becomes your public shop link.</FieldDescription>
-              <FieldError />
-            </Field>
-
-            <Field error={errors.description?.message}>
-              <FieldLabel>About the Shop</FieldLabel>
-              <FieldControl>
-                <Textarea
-                  placeholder="Tell customers what you sell…"
-                  rows={3}
-                  {...form.register("description")}
-                />
-              </FieldControl>
-              <FieldError />
-            </Field>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-base">Contact & Fulfillment</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <Field error={errors.phone?.message}>
-              <FieldLabel>Contact Phone</FieldLabel>
-              <FieldControl>
-                <Input type="tel" placeholder="09XX XXX XXXX" {...form.register("phone")} />
-              </FieldControl>
-              <FieldError />
-            </Field>
-
-            <Field error={errors.location?.message}>
-              <FieldLabel>Physical Location</FieldLabel>
-              <FieldControl>
-                <Input
-                  placeholder="Barangay, City/Municipality, Province"
-                  {...form.register("location")}
-                />
-              </FieldControl>
-              <FieldError />
-            </Field>
-
-            <Field error={errors.delivery_policy?.message}>
-              <FieldLabel>Delivery & Refund Policy</FieldLabel>
-              <FieldControl>
-                <Textarea
-                  placeholder="Describe your delivery timeline, coverage, and refund policy…"
-                  rows={4}
-                  {...form.register("delivery_policy")}
-                />
-              </FieldControl>
-              <FieldError />
-            </Field>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-base">Payment Setup</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <FieldGroup>
-              <Field error={errors.payment_bank?.message}>
-                <FieldLabel>Bank Account</FieldLabel>
-                <FieldControl>
-                  <Input
-                    placeholder="Bank name + Account number"
-                    {...form.register("payment_bank")}
-                  />
-                </FieldControl>
-                <FieldDescription>e.g. BDO 1234-5678-9012</FieldDescription>
                 <FieldError />
               </Field>
 
-              <Field error={errors.payment_wallet?.message}>
-                <FieldLabel>Mobile Wallet (GCash / Maya)</FieldLabel>
+              <Field error={errors.slug?.message}>
+                <FieldLabel required>Shop URL</FieldLabel>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground shrink-0">moxxa.com/shop/</span>
+                  <FieldControl>
+                    <Input
+                      placeholder="my-awesome-shop"
+                      {...form.register("slug")}
+                      onChange={(e) =>
+                        form.setValue("slug", slugify(e.target.value), { shouldValidate: true })
+                      }
+                    />
+                  </FieldControl>
+                </div>
+                <FieldDescription>This becomes your public shop link.</FieldDescription>
+                <FieldError />
+              </Field>
+
+              <Field error={errors.description?.message}>
+                <FieldLabel>About the Shop</FieldLabel>
                 <FieldControl>
-                  <Input placeholder="09XX XXX XXXX" {...form.register("payment_wallet")} />
+                  <Textarea
+                    placeholder="Tell customers what you sell…"
+                    rows={3}
+                    {...form.register("description")}
+                  />
                 </FieldControl>
                 <FieldError />
               </Field>
-            </FieldGroup>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader><CardTitle className="text-base">Guest Purchases</CardTitle></CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-sm">Allow Guest Checkout</p>
-                <p className="text-xs text-muted-foreground">
-                  Let customers buy without creating an account
-                </p>
+          <Card>
+            <CardHeader><CardTitle className="text-base">Contact & Fulfillment</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <Field error={errors.phone?.message}>
+                <FieldLabel>Contact Phone</FieldLabel>
+                <FieldControl>
+                  <Input type="tel" placeholder="09XX XXX XXXX" {...form.register("phone")} />
+                </FieldControl>
+                <FieldError />
+              </Field>
+
+              <Field error={errors.location?.message}>
+                <FieldLabel>Physical Location</FieldLabel>
+                <FieldControl>
+                  <Input
+                    placeholder="Barangay, City/Municipality, Province"
+                    {...form.register("location")}
+                  />
+                </FieldControl>
+                <FieldError />
+              </Field>
+
+              <Field error={errors.delivery_policy?.message}>
+                <FieldLabel>Delivery & Refund Policy</FieldLabel>
+                <FieldControl>
+                  <Textarea
+                    placeholder="Describe your delivery timeline, coverage, and refund policy…"
+                    rows={4}
+                    {...form.register("delivery_policy")}
+                  />
+                </FieldControl>
+                <FieldError />
+              </Field>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-base">Payment Setup</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <FieldGroup>
+                <Field error={errors.payment_bank?.message}>
+                  <FieldLabel>Bank Account</FieldLabel>
+                  <FieldControl>
+                    <Input
+                      placeholder="Bank name + Account number"
+                      {...form.register("payment_bank")}
+                    />
+                  </FieldControl>
+                  <FieldDescription>e.g. BDO 1234-5678-9012</FieldDescription>
+                  <FieldError />
+                </Field>
+
+                <Field error={errors.payment_wallet?.message}>
+                  <FieldLabel>Mobile Wallet (GCash / Maya)</FieldLabel>
+                  <FieldControl>
+                    <Input placeholder="09XX XXX XXXX" {...form.register("payment_wallet")} />
+                  </FieldControl>
+                  <FieldError />
+                </Field>
+              </FieldGroup>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-base">Guest Purchases</CardTitle></CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm">Allow Guest Checkout</p>
+                  <p className="text-xs text-muted-foreground">
+                    Let customers buy without creating an account
+                  </p>
+                </div>
+                <Controller
+                  control={form.control}
+                  name="allow_guest_purchase"
+                  render={({ field }) => (
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  )}
+                />
               </div>
-              <Controller
-                control={form.control}
-                name="allow_guest_purchase"
-                render={({ field }) => (
-                  <Switch checked={field.value} onCheckedChange={field.onChange} />
-                )}
-              />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Button type="submit" className="w-full" disabled={isPending}>
-          {isPending ? "Creating shop…" : "Create Shop & Add Products"}
-        </Button>
-      </form>
+          <Button type="submit" className="w-full" disabled={isPending}>
+            {isPending ? "Creating shop…" : "Create Shop & Add Products"}
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }

@@ -1,0 +1,117 @@
+Current problem:
+The UI uses a top navigation bar for shop features (Dashboard, Products, Orders, Billing, Settings). This does not scale well when users have multiple shops.
+
+Goal:
+Refactor the layout to follow modern SaaS dashboard UX patterns inspired by shadcn SaaS templates and patterns from https://www.shadcn.io/patterns and https://ui.shadcn.com/blocks.
+
+Design requirements:
+
+1. Main Layout
+Implement a SaaS dashboard shell using a persistent sidebar layout.
+
+Layout structure:
+
+Sidebar (left)
+Header (top)
+Content area (main)
+
+2. Sidebar
+The sidebar should include:
+
+Workspace switcher (shop selector)
+- Shows current shop name
+- Dropdown to switch between shops
+- "Create shop" option
+
+Primary navigation
+- Dashboard
+- Products
+- Orders
+- Billing
+- Settings
+
+Optional:
+- Collapsible sidebar
+- Icons using lucide-react
+- Mobile responsive drawer
+
+Use shadcn patterns for:
+- sidebar
+- workspace switcher
+- grouped navigation
+
+3. Header
+The header should contain:
+
+Page title
+Feature tabs if needed
+Search
+Notifications
+User profile dropdown
+
+Example:
+
+Dashboard | Products | Orders | Billing | Settings
+
+These should reflect the active sidebar feature.
+
+4. Routing architecture
+
+Use Next.js App Router layout groups.
+
+Example:
+
+app
+  (dashboard)
+    layout.tsx
+    [shopSlug]
+      layout.tsx
+      dashboard
+      products
+      orders
+      billing
+      settings
+
+The sidebar layout should exist in the shop workspace layout.
+
+5. Workspace switching
+
+URL pattern:
+
+/dashboard/[shopSlug]/dashboard
+/dashboard/[shopSlug]/products
+/dashboard/[shopSlug]/orders
+
+Switching workspace updates the slug.
+
+6. UI components
+
+Use shadcn components when possible:
+
+Sidebar
+DropdownMenu
+Tabs
+Command (optional search)
+Avatar
+Button
+Separator
+Badge
+
+7. Visual style
+
+Follow shadcn SaaS block design principles:
+
+- clean spacing
+- neutral color palette
+- card based dashboards
+- subtle borders
+- minimal shadows
+- dashboard KPI cards
+
+8. Example flow
+
+User logs in
+→ Dashboard loads
+→ Sidebar shows list of shops
+→ User selects shop
+→ Navigation updates to that workspace

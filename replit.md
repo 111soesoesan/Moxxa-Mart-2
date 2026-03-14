@@ -22,9 +22,10 @@ src/
     (vendor)/    # Vendor dashboard - shop management, products, billing
     api/         # API routes (Supabase auth callback)
   components/
+    dashboard/   # Vendor dashboard shell — AppSidebar, DashboardShell, HubHeader
     layout/      # Header, Footer, CartDrawer, SearchBar, CategoryNav
     shared/      # ProductCard, ShopCard, StatusBadge, ImageUpload
-    ui/          # shadcn/ui components
+    ui/          # shadcn/ui components (includes sidebar.tsx)
   context/       # CartContext (localStorage-based cart)
   hooks/         # useCart
   lib/
@@ -90,6 +91,31 @@ All forms use the new `Field` component pattern from `src/components/ui/field.ts
 - **`FieldGroup`** — responsive grid for side-by-side fields (default 2-col)
 
 All forms use `react-hook-form` + `zodResolver` + Zod v4 schemas. `Controller` is used for `Select` and `Switch` (controlled components). Root-level errors use `form.setError("root", ...)`.
+
+## Vendor Dashboard Layout
+
+The vendor workspace uses shadcn's `Sidebar` component family from `src/components/ui/sidebar.tsx`.
+
+**Component tree:**
+- `DashboardShell` (client) — wraps `SidebarProvider` + `AppSidebar` + `SidebarInset`
+- `AppSidebar` (client) — uses `Sidebar`, `SidebarHeader`, `SidebarContent`, `SidebarFooter`, `SidebarRail`
+- `HubHeader` (client) — simple sticky header used only on `/vendor` hub and `/vendor/onboarding` pages
+
+**Layout hierarchy:**
+```
+(vendor)/layout.tsx              ← auth check only (getUser)
+  vendor/page.tsx                ← hub page with HubHeader inline
+  vendor/onboarding/page.tsx     ← onboarding with own header
+  vendor/[shopSlug]/layout.tsx   ← fetches shops + profile → renders DashboardShell
+    [shopSlug]/page.tsx          ← dashboard, products, orders, billing, settings
+```
+
+**Sidebar features:**
+- Workspace switcher: shop logo + name + status dot → dropdown to switch shops or create new
+- Collapsible to icon-only mode via `SidebarRail` or `SidebarTrigger` (`Ctrl+B`)
+- Mobile: automatically becomes a `Sheet` drawer (handled by shadcn internally)
+- Active nav item: detected via `usePathname()` with exact match for Dashboard
+- User profile footer: avatar + name/email → dropdown (All Shops, My Orders, Sign out)
 
 ## Notes
 
