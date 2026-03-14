@@ -26,8 +26,8 @@ import { useState } from "react";
 const schema = z.object({
   name: z.string().min(1, "Product title is required"),
   description: z.string().optional(),
-  price: z.coerce.number().min(0, "Price must be 0 or more"),
-  stock: z.coerce.number().int("Stock must be a whole number").min(0, "Stock must be 0 or more"),
+  price: z.number().min(0, "Price must be 0 or more"),
+  stock: z.number().int("Stock must be a whole number").min(0, "Stock must be 0 or more"),
   category: z.string().optional(),
   condition: z.string().min(1, "Condition is required"),
   list_on_marketplace: z.boolean(),
@@ -204,7 +204,7 @@ export default function EditProductPage() {
               <Field error={errors.price?.message}>
                 <FieldLabel required>Price (₱)</FieldLabel>
                 <FieldControl>
-                  <Input type="number" step="0.01" min="0" placeholder="0.00" {...form.register("price")} />
+                  <Input type="number" step="0.01" min="0" placeholder="0.00" {...form.register("price", { valueAsNumber: true })} />
                 </FieldControl>
                 <FieldError />
               </Field>
@@ -212,7 +212,7 @@ export default function EditProductPage() {
               <Field error={errors.stock?.message}>
                 <FieldLabel required>Stock Count</FieldLabel>
                 <FieldControl>
-                  <Input type="number" min="0" placeholder="0" {...form.register("stock")} />
+                  <Input type="number" min="0" placeholder="0" {...form.register("stock", { valueAsNumber: true })} />
                 </FieldControl>
                 <FieldError />
               </Field>

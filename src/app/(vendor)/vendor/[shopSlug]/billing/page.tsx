@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { Upload, CreditCard } from "lucide-react";
 
 const schema = z.object({
-  amount: z.coerce.number().min(1, "Amount must be at least ₱1"),
+  amount: z.number().min(1, "Amount must be at least ₱1"),
 });
 
 type BillingSchema = z.infer<typeof schema>;
@@ -109,7 +109,7 @@ export default function BillingPage() {
               step="0.01"
               min="1"
               placeholder="299.00"
-              {...form.register("amount")}
+              {...form.register("amount", { valueAsNumber: true })}
             />
           </FieldControl>
           <FieldDescription>Enter the exact amount you sent.</FieldDescription>
