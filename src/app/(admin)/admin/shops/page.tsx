@@ -6,12 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { CheckCircle, XCircle, ExternalLink, MapPin, Phone, Calendar } from "lucide-react";
+import { CheckCircle, XCircle, Eye, MapPin, Phone, Calendar } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import Link from "next/link";
 import Image from "next/image";
@@ -59,7 +58,9 @@ export default function AdminShopsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">Shop Inspection Queue</h1>
-          <p className="text-sm text-muted-foreground mt-1">Review shops requesting to go live on the marketplace.</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Review shops requesting to go live on the marketplace.
+          </p>
         </div>
         {!loading && <Badge variant="secondary">{shops.length} pending</Badge>}
       </div>
@@ -92,14 +93,16 @@ export default function AdminShopsPage() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start justify-between gap-2 flex-wrap">
                         <div>
                           <CardTitle className="text-base">{shop.name}</CardTitle>
-                          <p className="text-sm text-muted-foreground">by {profile?.full_name ?? "Unknown"}</p>
+                          <p className="text-sm text-muted-foreground">
+                            by {profile?.full_name ?? "Unknown"}
+                          </p>
                         </div>
-                        <Button asChild size="sm" variant="ghost">
-                          <Link href={`/shop/${shop.slug}`} target="_blank">
-                            <ExternalLink className="h-3.5 w-3.5 mr-1" />Preview
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/admin/shops/${shop.id}`}>
+                            <Eye className="h-3.5 w-3.5 mr-1" />Full Preview
                           </Link>
                         </Button>
                       </div>
@@ -111,10 +114,21 @@ export default function AdminShopsPage() {
                     <p className="text-sm text-muted-foreground">{shop.description}</p>
                   )}
                   <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                    {shop.location && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{shop.location}</span>}
-                    {shop.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{shop.phone}</span>}
+                    {shop.location && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />{shop.location}
+                      </span>
+                    )}
+                    {shop.phone && (
+                      <span className="flex items-center gap-1">
+                        <Phone className="h-3 w-3" />{shop.phone}
+                      </span>
+                    )}
                     {shop.inspection_requested_at && (
-                      <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />Requested {formatDateTime(shop.inspection_requested_at)}</span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        Requested {formatDateTime(shop.inspection_requested_at)}
+                      </span>
                     )}
                   </div>
                   {shop.delivery_policy && (
@@ -155,7 +169,10 @@ export default function AdminShopsPage() {
         </div>
       )}
 
-      <Dialog open={!!rejectTarget} onOpenChange={(open) => { if (!open) { setRejectTarget(null); setRejectReason(""); } }}>
+      <Dialog
+        open={!!rejectTarget}
+        onOpenChange={(open) => { if (!open) { setRejectTarget(null); setRejectReason(""); } }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reject {rejectTarget?.name}</DialogTitle>
@@ -170,7 +187,12 @@ export default function AdminShopsPage() {
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setRejectTarget(null); setRejectReason(""); }}>Cancel</Button>
+            <Button
+              variant="outline"
+              onClick={() => { setRejectTarget(null); setRejectReason(""); }}
+            >
+              Cancel
+            </Button>
             <Button variant="destructive" onClick={handleReject} disabled={isPending}>
               Reject Shop
             </Button>

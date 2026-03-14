@@ -1,12 +1,13 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 async function assertAdmin() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
+  if (!user) redirect("/login");
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -14,7 +15,7 @@ async function assertAdmin() {
     .eq("id", user.id)
     .single();
 
-  if (profile?.role !== "admin") throw new Error("Forbidden");
+  if (profile?.role !== "admin") redirect("/");
   return user;
 }
 
@@ -106,5 +107,39 @@ export async function getAllBillingProofs() {
     .from("billing_proofs")
     .select("*, shops(name, slug)")
     .order("created_at", { ascending: false });
+  return data ?? [];
+}
+
+export async function getAdminShopWithProducts(shopId: string) {
+  await assertAdmin();
+  const supabase = await createServiceClient();
+
+  const [shopRes, productsRes] = await Promise.all([
+    supabase
+      .from("shops")
+      .select("*, profiles(full_name, avatar_url)")
+      .eq("id", shopId)
+      .single(),
+    supabase
+      .from("products")
+      .select("*")
+      .eq("shop_id", shopId)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  return {
+    shop: shopRes.data,
+    products: productsRes.data ?? [],
+  };
+}
+
+export async function getRecentOrders(limit = 10) {
+  await assertAdmin();
+  const supabase = await createServiceClient();
+  const { data } = await supabase
+    .from("orders")
+    .select("*, shops(name, slug)")
+    .order("created_at", { ascending: false })
+    .limit(limit);
   return data ?? [];
 }

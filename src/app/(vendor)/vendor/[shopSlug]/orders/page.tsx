@@ -1,13 +1,12 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getMyShops } from "@/actions/shops";
-import { getShopOrders, updateOrderStatus, markOrderPaid } from "@/actions/orders";
+import { getShopOrders } from "@/actions/orders";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
-import { revalidatePath } from "next/cache";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { OrderStatusActions } from "@/components/vendor/OrderStatusActions";
+import { ShoppingBag } from "lucide-react";
 
 type Props = { params: Promise<{ shopSlug: string }> };
 
@@ -19,39 +18,44 @@ export default async function VendorOrdersPage({ params }: Props) {
 
   const orders = await getShopOrders(shop.id);
 
-  async function handleStatusUpdate(orderId: string, status: string) {
-    "use server";
-    await updateOrderStatus(orderId, status);
-    revalidatePath(`/vendor/${shopSlug}/orders`);
-  }
-
-  async function handleMarkPaid(orderId: string) {
-    "use server";
-    await markOrderPaid(orderId);
-    revalidatePath(`/vendor/${shopSlug}/orders`);
-  }
-
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <h1 className="text-xl font-bold mb-6">Orders ({orders.length})</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-bold">Orders ({orders.length})</h1>
+      </div>
 
       {orders.length === 0 ? (
         <div className="text-center py-16 border rounded-xl text-muted-foreground">
+          <ShoppingBag className="h-10 w-10 mx-auto mb-3" />
           <p>No orders yet. Share your shop link to start selling!</p>
         </div>
       ) : (
         <div className="space-y-3">
           {orders.map((order) => {
-            const customer = order.customer_snapshot as { full_name: string; phone: string; address: string };
-            const items = order.items_snapshot as Array<{ name: string; quantity: number }>;
+            const customer = order.customer_snapshot as {
+              full_name: string;
+              phone: string;
+              address: string;
+            };
+            const items = order.items_snapshot as Array<{
+              name: string;
+              quantity: number;
+            }>;
 
             return (
               <Card key={order.id}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-4 mb-3">
-                    <div>
-                      <p className="font-semibold">{customer?.full_name}</p>
-                      <p className="text-xs text-muted-foreground">{customer?.phone} • {formatDateTime(order.created_at)}</p>
+                    <div className="min-w-0">
+                      <Link
+                        href={`/vendor/${shopSlug}/orders/${order.id}`}
+                        className="font-semibold hover:text-primary transition-colors"
+                      >
+                        {customer?.full_name}
+                      </Link>
+                      <p className="text-xs text-muted-foreground">
+                        {customer?.phone} • {formatDateTime(order.created_at)}
+                      </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {items.map((i) => `${i.name} ×${i.quantity}`).join(", ")}
                       </p>
@@ -64,41 +68,12 @@ export default async function VendorOrdersPage({ params }: Props) {
                   <div className="flex items-center gap-2 flex-wrap">
                     <StatusBadge type="order" value={order.status} />
                     <StatusBadge type="payment" value={order.payment_status} />
-
-                    {order.payment_status === "pending_verification" && (
-                      <form action={handleMarkPaid.bind(null, order.id)}>
-                        <Button size="sm" type="submit" className="h-7 text-xs">
-                          ✓ Mark Paid
-                        </Button>
-                      </form>
-                    )}
-
-                    {order.payment_status === "paid" && order.status !== "delivered" && order.status !== "cancelled" && (
-                      <form className="flex items-center gap-2">
-                        <input type="hidden" name="orderId" value={order.id} />
-                        <Select onValueChange={(val) => handleStatusUpdate(order.id, val)}>
-                          <SelectTrigger className="h-7 text-xs w-36">
-                            <SelectValue placeholder="Update status" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {["processing", "shipped", "delivered", "cancelled"].map((s) => (
-                              <SelectItem key={s} value={s} className="text-xs capitalize">{s}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </form>
-                    )}
-
-                    {order.payment_proof_url && (
-                      <a
-                        href={order.payment_proof_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-primary underline"
-                      >
-                        View Proof
-                      </a>
-                    )}
+                    <OrderStatusActions
+                      orderId={order.id}
+                      paymentStatus={order.payment_status}
+                      orderStatus={order.status}
+                      paymentProofUrl={order.payment_proof_url ?? null}
+                    />
                   </div>
                 </CardContent>
               </Card>

@@ -22,9 +22,10 @@ src/
     (vendor)/    # Vendor dashboard - shop management, products, billing
     api/         # API routes (Supabase auth callback)
   components/
-    dashboard/   # Vendor dashboard shell — AppSidebar, DashboardShell, HubHeader
+    dashboard/   # Vendor dashboard shell — AppSidebar, DashboardShell, HubHeader; AdminSidebar
     layout/      # Header, Footer, CartDrawer, SearchBar, CategoryNav
     shared/      # ProductCard, ShopCard, StatusBadge, ImageUpload
+    vendor/      # OrderStatusActions (client component for status/mark-paid controls)
     ui/          # shadcn/ui components (includes sidebar.tsx)
   context/       # CartContext (localStorage-based cart)
   hooks/         # useCart
@@ -56,9 +57,9 @@ Managed via Supabase migrations in `supabase/migrations/`:
 
 ## Key Features
 
-- **Customer**: Browse products/shops by category, search, cart, checkout (guest or authenticated), order tracking
-- **Vendor**: Shop onboarding, product management, billing/subscription, inspection workflow
-- **Admin**: Shop approval/rejection, billing proof verification
+- **Customer**: Browse products/shops by category, search, cart, checkout (guest or authenticated), order tracking with payment proof upload
+- **Vendor**: Shop onboarding, product management, billing/subscription, inspection workflow; order list + order detail page with payment proof image viewer and inline status management
+- **Admin**: Shop approval/rejection (with full product preview via service-role client), billing proof verification, platform stats, orders overview
 
 ## Running
 
