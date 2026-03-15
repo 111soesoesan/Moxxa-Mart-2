@@ -43,14 +43,14 @@ export function DashboardShell({ shops, currentShop, profile, children }: Props)
 
       <SidebarInset>
         {/* ── Top header ── */}
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
+        <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border/50 bg-white px-6 dark:bg-slate-950">
+          <SidebarTrigger className="-ml-2" />
           <Separator orientation="vertical" className="my-2"/>
-          <h1 className="text-sm font-semibold">{title}</h1>
+          <h1 className="text-lg font-semibold tracking-tight text-foreground">{title}</h1>
         </header>
 
         {/* ── Page content ── */}
-        <div className="flex flex-1 flex-col gap-4 bg-muted/20">
+        <div className="flex flex-1 flex-col gap-0 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
           {children}
         </div>
       </SidebarInset>

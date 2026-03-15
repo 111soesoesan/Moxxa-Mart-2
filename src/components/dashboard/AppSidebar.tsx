@@ -88,7 +88,7 @@ export function AppSidebar({ shops, currentShop, profile }: Props) {
   };
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" className="border-r border-border/50">
       {/* ── Workspace switcher ── */}
       <SidebarHeader>
         <SidebarMenu>

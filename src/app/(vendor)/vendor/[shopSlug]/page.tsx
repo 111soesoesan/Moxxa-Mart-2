@@ -6,9 +6,9 @@ import { getShopProducts } from "@/actions/products";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { Alert } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
-import { Package, ShoppingBag, DollarSign, ClipboardCheck } from "lucide-react";
+import { Package, ShoppingBag, DollarSign, ClipboardCheck, AlertCircle, TrendingUp, ArrowRight } from "lucide-react";
 import { revalidatePath } from "next/cache";
 
 type Props = { params: Promise<{ shopSlug: string }> };
@@ -34,102 +34,143 @@ export default async function ShopDashboardPage({ params }: Props) {
     .filter((o) => o.payment_status === "paid")
     .reduce((s, o) => s + o.total, 0);
 
+  const pendingVerification = orders.filter((o) => o.payment_status === "pending_verification").length;
+
   const requestAction = handleRequestInspection.bind(null, shop.id, shop.slug);
   const canRequestInspection = shop.status === "draft" && products.length >= 3;
 
+  const metrics = [
+    { label: "Products", value: products.length, icon: Package, href: "products", color: "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400" },
+    { label: "Total Orders", value: orders.length, icon: ShoppingBag, href: "orders", color: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400" },
+    { label: "Revenue", value: formatCurrency(revenue), icon: DollarSign, href: "orders", color: "bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400" },
+    { label: "Pending Proofs", value: pendingVerification, icon: ClipboardCheck, href: "orders", color: "bg-purple-50 text-purple-600 dark:bg-purple-950 dark:text-purple-400" },
+  ];
+
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">{shop.name}</h1>
-          <div className="flex items-center gap-2 mt-1">
-            <StatusBadge type="shop" value={shop.status} />
+    <div className="flex flex-1 flex-col gap-6 p-6">
+      {/* Header */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold tracking-tight">{shop.name}</h1>
+            <div className="flex items-center gap-3 mt-2">
+              <StatusBadge type="shop" value={shop.status} />
+              {shop.status === "active" && (
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/shop/${shop.slug}`} target="_blank" className="gap-2">
+                    View Public Shop
+                    <ArrowRight className="h-3 w-3" />
+                  </Link>
+                </Button>
+              )}
+            </div>
           </div>
         </div>
-        {shop.status === "active" && (
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/shop/${shop.slug}`} target="_blank">View Public Page</Link>
-          </Button>
-        )}
       </div>
 
+      {/* Status Alerts */}
       {shop.status === "draft" && (
-        <Alert className="mb-6">
-          <p className="font-medium">Your shop is in Draft mode</p>
-          <p className="text-sm text-muted-foreground mt-1">
+        <Alert className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950">
+          <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <AlertTitle className="text-amber-900 dark:text-amber-200">Complete Setup to Launch</AlertTitle>
+          <AlertDescription className="text-amber-800 dark:text-amber-300">
             Add at least 3 products then request inspection to go live.
-            {products.length < 3 && ` You have ${products.length}/3 products.`}
-          </p>
-          {canRequestInspection && (
-            <form action={requestAction} className="mt-3">
-              <Button type="submit" size="sm">
-                <ClipboardCheck className="mr-2 h-4 w-4" />Request Inspection
-              </Button>
-            </form>
-          )}
+            {products.length < 3 && (
+              <div className="mt-2 flex items-center gap-2">
+                <div className="h-2 flex-1 rounded-full bg-amber-200 dark:bg-amber-800">
+                  <div className="h-2 rounded-full bg-amber-600 dark:bg-amber-400" style={{ width: `${(products.length / 3) * 100}%` }} />
+                </div>
+                <span className="text-sm font-medium">{products.length}/3</span>
+              </div>
+            )}
+            {canRequestInspection && (
+              <form action={requestAction} className="mt-3">
+                <Button type="submit" size="sm" className="bg-amber-600 hover:bg-amber-700 dark:bg-amber-600 dark:hover:bg-amber-700">
+                  <ClipboardCheck className="mr-2 h-4 w-4" />
+                  Request Inspection
+                </Button>
+              </form>
+            )}
+          </AlertDescription>
         </Alert>
       )}
 
       {shop.status === "rejected" && shop.rejection_reason && (
-        <Alert variant="destructive" className="mb-6">
-          <p className="font-medium">Shop Rejected</p>
-          <p className="text-sm mt-1">{shop.rejection_reason}</p>
-          <p className="text-sm text-muted-foreground mt-1">Fix the issues then request re-inspection from Settings.</p>
+        <Alert className="border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950">
+          <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+          <AlertTitle className="text-red-900 dark:text-red-200">Shop Rejected</AlertTitle>
+          <AlertDescription className="text-red-800 dark:text-red-300">
+            {shop.rejection_reason}
+            <p className="mt-2 text-sm">Fix the issues then request re-inspection from Settings.</p>
+          </AlertDescription>
         </Alert>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {[
-          { label: "Products", value: products.length, icon: Package, href: "products" },
-          { label: "Total Orders", value: orders.length, icon: ShoppingBag, href: "orders" },
-          { label: "Paid Revenue", value: formatCurrency(revenue), icon: DollarSign, href: "orders" },
-          { label: "Pending Proofs", value: orders.filter((o) => o.payment_status === "pending_verification").length, icon: ClipboardCheck, href: "orders" },
-        ].map(({ label, value, icon: Icon, href }) => (
+      {/* Metrics Grid */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {metrics.map(({ label, value, icon: Icon, href, color }) => (
           <Link key={label} href={`/vendor/${shopSlug}/${href}`}>
-            <Card className="hover:shadow-md transition-shadow">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <Icon className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">{label}</span>
+            <Card className="hover:shadow-lg transition-all duration-200 cursor-pointer h-full border-0 bg-white dark:bg-slate-950">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-muted-foreground mb-2">{label}</p>
+                    <p className="text-2xl md:text-3xl font-bold tracking-tight">{value}</p>
+                  </div>
+                  <div className={`p-3 rounded-lg ${color}`}>
+                    <Icon className="h-5 w-5" />
+                  </div>
                 </div>
-                <p className="text-2xl font-bold">{value}</p>
               </CardContent>
             </Card>
           </Link>
         ))}
       </div>
 
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold">Recent Orders</h2>
-          <Link href={`/vendor/${shopSlug}/orders`} className="text-sm text-primary hover:underline">View all</Link>
-        </div>
-        {orders.length === 0 ? (
-          <p className="text-muted-foreground text-sm py-4">No orders yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {orders.slice(0, 5).map((order) => {
-              const customer = order.customer_snapshot as { full_name: string; phone: string };
-              return (
-                <Link key={order.id} href={`/orders/${order.id}`}>
-                  <Card className="hover:shadow-sm transition-shadow">
-                    <CardContent className="p-3 flex items-center justify-between gap-4">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{customer?.full_name ?? "Customer"}</p>
+      {/* Recent Orders Section */}
+      <Card className="border-0 bg-white dark:bg-slate-950 shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Recent Orders</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">Latest transactions from your customers</p>
+            </div>
+            <Link href={`/vendor/${shopSlug}/orders`} className="text-sm font-medium text-primary hover:underline flex items-center gap-1">
+              View all
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {orders.length === 0 ? (
+            <div className="py-12 text-center">
+              <ShoppingBag className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+              <p className="text-muted-foreground font-medium">No orders yet</p>
+              <p className="text-sm text-muted-foreground mt-1">Orders from customers will appear here</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {orders.slice(0, 5).map((order) => {
+                const customer = order.customer_snapshot as { full_name: string; phone: string };
+                return (
+                  <Link key={order.id} href={`/orders/${order.id}`}>
+                    <div className="group flex items-center justify-between gap-4 p-3 rounded-lg hover:bg-muted/50 transition-colors">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">{customer?.full_name ?? "Customer"}</p>
                         <p className="text-xs text-muted-foreground">{formatDateTime(order.created_at)}</p>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-3 shrink-0">
                         <StatusBadge type="payment" value={order.payment_status} />
-                        <span className="font-semibold text-sm">{formatCurrency(order.total)}</span>
+                        <span className="font-semibold text-sm min-w-fit text-right">{formatCurrency(order.total)}</span>
                       </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
