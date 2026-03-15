@@ -68,8 +68,8 @@ export default function OrderDetailPage() {
     );
   }
 
-  const shop = order.shops as { name: string; slug: string; payment_info?: unknown; phone?: string } | null;
-  const paymentInfo = shop?.payment_info as Record<string, string> | null;
+  const shop = order.shops as { name: string; slug: string; phone?: string } | null;
+  const paymentMethod = order.payment_methods as { name: string; type: string; bank_name?: string; account_holder?: string; account_number?: string; proof_required: boolean } | null;
   const items = order.items_snapshot as Array<{ name: string; price: number; quantity: number; image_url?: string }>;
   const customer = order.customer_snapshot as { full_name: string; phone: string; address: string; email?: string };
 
@@ -86,32 +86,47 @@ export default function OrderDetailPage() {
         <StatusBadge type="payment" value={order.payment_status} />
       </div>
 
+      {/* Payment Method Card */}
+      {paymentMethod && (
+        <Card className="bg-muted/30">
+          <CardHeader><CardTitle className="text-base">Payment Method</CardTitle></CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">{paymentMethod.name}</p>
+              {paymentMethod.type === "cash" ? (
+                <p className="text-sm text-muted-foreground">Pay cash when your order arrives.</p>
+              ) : (
+                <div className="space-y-1 text-sm">
+                  {paymentMethod.bank_name && (
+                    <p><span className="font-medium">Bank:</span> {paymentMethod.bank_name}</p>
+                  )}
+                  {paymentMethod.account_holder && (
+                    <p><span className="font-medium">Account Holder:</span> {paymentMethod.account_holder}</p>
+                  )}
+                  {paymentMethod.account_number && (
+                    <p><span className="font-medium">Account Number:</span> <code className="font-mono bg-background px-1 py-0.5 rounded">{paymentMethod.account_number}</code></p>
+                  )}
+                  <p className="text-xs text-muted-foreground font-semibold text-primary">Amount: {formatCurrency(order.total)}</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Payment Proof Section */}
-      {order.payment_status === "unpaid" && (
+      {order.payment_status === "unpaid" && paymentMethod?.type === "bank" && paymentMethod.proof_required && (
         <Card className="border-primary/50 bg-primary/5">
           <CardHeader><CardTitle className="text-base">Submit Payment Proof</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            {paymentInfo && Object.keys(paymentInfo).length > 0 && (
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Send payment to:</p>
-                {Object.entries(paymentInfo).map(([method, detail]) => (
-                  <div key={method} className="text-sm bg-background rounded-lg px-3 py-2 border">
-                    <span className="font-medium">{method}:</span>{" "}
-                    <span className="font-mono">{detail}</span>
-                  </div>
-                ))}
-                <p className="text-sm font-semibold text-primary">Amount: {formatCurrency(order.total)}</p>
-              </div>
-            )}
-            <Separator />
             <p className="text-sm text-muted-foreground">
-              After sending payment, upload your screenshot or receipt:
+              This payment method requires proof. After sending payment, upload your screenshot or receipt:
             </p>
             <label className="block">
               <Button variant="outline" className="w-full" disabled={uploading || isPending} asChild>
                 <span>
                   <Upload className="mr-2 h-4 w-4" />
-                  {uploading ? "Uploading…" : "Upload Payment Screenshot"}
+                  {uploading ? "Uploading…" : "Upload Payment Proof"}
                   <input type="file" accept="image/*" className="hidden" onChange={handleProofUpload} />
                 </span>
               </Button>

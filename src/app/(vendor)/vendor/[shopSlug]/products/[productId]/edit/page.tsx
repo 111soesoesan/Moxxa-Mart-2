@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useParams, useRouter } from "next/navigation";
 import { getShopProducts, updateProduct, deleteProduct } from "@/actions/products";
+import { getShopPaymentMethods } from "@/actions/paymentMethods";
 import { uploadProductImage } from "@/lib/supabase/storage";
 import { ImageUpload } from "@/components/shared/ImageUpload";
 import { Button } from "@/components/ui/button";
@@ -17,10 +18,11 @@ import { Alert } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Field, FieldLabel, FieldControl, FieldError, FieldGroup } from "@/components/ui/field";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldLabel, FieldControl, FieldError, FieldGroup, FieldDescription } from "@/components/ui/field";
 import { CATEGORIES, CONDITIONS } from "@/lib/constants";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Trash2, AlertTriangle } from "lucide-react";
 import { useState } from "react";
 
 const schema = z.object({
@@ -32,9 +34,17 @@ const schema = z.object({
   condition: z.string().min(1, "Condition is required"),
   list_on_marketplace: z.boolean(),
   is_active: z.boolean(),
+  payment_method_ids: z.array(z.string()).min(1, "Select at least one payment method"),
 });
 
 type EditProductSchema = z.infer<typeof schema>;
+
+type PaymentMethod = {
+  id: string;
+  name: string;
+  type: string;
+  is_active: boolean;
+};
 
 export default function EditProductPage() {
   const { shopSlug, productId } = useParams<{ shopSlug: string; productId: string }>();
@@ -42,6 +52,8 @@ export default function EditProductPage() {
   const [isPending, startTransition] = useTransition();
   const [loading, setLoading] = useState(true);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [shopId, setShopId] = useState<string | null>(null);
 
   const form = useForm<EditProductSchema>({
     resolver: zodResolver(schema),
@@ -54,6 +66,7 @@ export default function EditProductPage() {
       condition: "new",
       list_on_marketplace: true,
       is_active: true,
+      payment_method_ids: [],
     },
   });
 
@@ -66,6 +79,14 @@ export default function EditProductPage() {
       const shops = await getMyShops();
       const shop = shops.find((s) => s.slug === shopSlug);
       if (!shop) { setLoading(false); return; }
+
+      setShopId(shop.id);
+
+      // Fetch payment methods
+      const paymentResult = await getShopPaymentMethods(shop.id);
+      if (paymentResult.data) {
+        setPaymentMethods(paymentResult.data);
+      }
 
       const products = await getShopProducts(shop.id);
       const product = products.find((p) => p.id === productId);
@@ -81,6 +102,7 @@ export default function EditProductPage() {
         condition: product.condition ?? "new",
         list_on_marketplace: product.list_on_marketplace ?? true,
         is_active: product.is_active ?? true,
+        payment_method_ids: (product as { payment_method_ids?: string[] }).payment_method_ids ?? [],
       });
       setLoading(false);
     })();
@@ -102,6 +124,7 @@ export default function EditProductPage() {
         image_urls: imageUrls,
         list_on_marketplace: values.list_on_marketplace,
         is_active: values.is_active,
+        payment_method_ids: values.payment_method_ids,
       });
 
       if (result.error) {
@@ -263,6 +286,63 @@ export default function EditProductPage() {
                 <FieldError />
               </Field>
             </FieldGroup>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Payment Methods</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <Field error={errors.payment_method_ids?.message}>
+              <FieldLabel required>Accept Payment Via</FieldLabel>
+              <FieldDescription>
+                Select at least one payment method. Customers will see these options at checkout.
+              </FieldDescription>
+              {paymentMethods.length === 0 ? (
+                <Alert className="mt-3 bg-orange-50 border-orange-200 text-orange-900">
+                  <AlertTriangle className="h-4 w-4" />
+                  <p className="text-sm">
+                    No payment methods configured. <Button variant="link" size="sm" className="h-auto p-0 ml-1" asChild>
+                      <a href={`/vendor/${shopSlug}/payment-methods`}>Create one now</a>
+                    </Button>
+                  </p>
+                </Alert>
+              ) : (
+                <div className="space-y-2 mt-3">
+                  {paymentMethods.map((method) => (
+                    <div key={method.id} className="flex items-center space-x-2">
+                      <Controller
+                        control={form.control}
+                        name="payment_method_ids"
+                        render={({ field }) => (
+                          <Checkbox
+                            id={method.id}
+                            checked={field.value.includes(method.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                field.onChange([...field.value, method.id]);
+                              } else {
+                                field.onChange(field.value.filter((id) => id !== method.id));
+                              }
+                            }}
+                            disabled={!method.is_active}
+                          />
+                        )}
+                      />
+                      <label
+                        htmlFor={method.id}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex items-center gap-2"
+                      >
+                        {method.name}
+                        {!method.is_active && (
+                          <span className="text-xs text-muted-foreground">(Inactive)</span>
+                        )}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <FieldError className="mt-2" />
+            </Field>
           </CardContent>
         </Card>
 

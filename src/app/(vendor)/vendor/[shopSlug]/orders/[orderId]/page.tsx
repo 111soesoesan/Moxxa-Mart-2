@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { OrderStatusActions } from "@/components/vendor/OrderStatusActions";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
-import { ArrowLeft, User, MapPin, Phone, Mail, FileImage } from "lucide-react";
+import { ArrowLeft, User, MapPin, Phone, Mail, FileImage, Banknote, DollarSign, Wallet } from "lucide-react";
 
 type Props = { params: Promise<{ shopSlug: string; orderId: string }> };
 
@@ -86,6 +86,45 @@ export default async function VendorOrderDetailPage({ params }: Props) {
           )}
         </CardContent>
       </Card>
+
+      {/* Payment Method */}
+      {order.payment_methods && (
+        <Card className="mb-6 bg-muted/30">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              {order.payment_methods.type === "cash" ? (
+                <Wallet className="h-4 w-4 text-green-600" />
+              ) : (
+                <DollarSign className="h-4 w-4 text-blue-600" />
+              )}
+              <CardTitle className="text-sm">Payment Method</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div>
+              <p className="font-semibold">{order.payment_methods.name}</p>
+              {order.payment_methods.type === "bank" && (
+                <div className="mt-2 space-y-1">
+                  {order.payment_methods.bank_name && (
+                    <p><span className="text-muted-foreground">Bank:</span> {order.payment_methods.bank_name}</p>
+                  )}
+                  {order.payment_methods.account_holder && (
+                    <p><span className="text-muted-foreground">Account:</span> {order.payment_methods.account_holder}</p>
+                  )}
+                  {order.payment_methods.account_number && (
+                    <p><span className="text-muted-foreground">Number:</span> <code className="font-mono">{order.payment_methods.account_number}</code></p>
+                  )}
+                  {order.payment_methods.proof_required && (
+                    <p className="text-xs bg-orange-50 text-orange-700 px-2 py-1 rounded mt-2 inline-block">
+                      Proof required
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Payment Proof */}
       {order.payment_proof_url && (
