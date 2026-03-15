@@ -1,104 +1,89 @@
-"use client";
-
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
-
-interface BlogPost {
-  id: string;
-  title: string;
-  excerpt: string;
-  publishedAt: string;
-}
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Heart, MessageCircle, ArrowRight } from "lucide-react";
+import { BLOG_CATEGORIES } from "@/lib/constants";
+import { getShopBlogsPublic } from "@/actions/blogs";
+import { formatDistanceToNow } from "date-fns";
 
 interface ShopBlogSectionProps {
-  posts?: BlogPost[];
-  isEditable?: boolean;
+  shopId: string;
+  shopSlug: string;
 }
 
-export function ShopBlogSection({ posts, isEditable = false }: ShopBlogSectionProps) {
-  const mockPosts: BlogPost[] = [
-    {
-      id: "1",
-      title: "New Collection Launch",
-      excerpt: "Discover our latest arrivals and exclusive deals this season.",
-      publishedAt: "2 days ago",
-    },
-    {
-      id: "2",
-      title: "How to Care for Your Purchase",
-      excerpt: "Tips and tricks to keep your items in perfect condition.",
-      publishedAt: "1 week ago",
-    },
-    {
-      id: "3",
-      title: "Behind the Scenes",
-      excerpt: "Meet the team and learn about our mission.",
-      publishedAt: "2 weeks ago",
-    },
-  ];
+export async function ShopBlogSection({ shopId, shopSlug }: ShopBlogSectionProps) {
+  const blogs = await getShopBlogsPublic(shopId, { sort: "newest", limit: 3 });
 
-  const displayPosts = posts?.length ? posts : mockPosts;
+  if (blogs.length === 0) return null;
 
   return (
     <div className="space-y-4 mt-8">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-xl font-bold">Latest from Shop</h3>
+          <h3 className="text-xl font-bold">Latest from the Blog</h3>
           <p className="text-sm text-muted-foreground mt-1">Shop news and updates</p>
         </div>
-        {isEditable && (
-          <Button variant="outline" size="sm">
-            Manage Blog
-          </Button>
-        )}
+        <Button variant="outline" size="sm" asChild>
+          <Link href={`/shop/${shopSlug}/blogs`}>
+            See all posts <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+          </Link>
+        </Button>
       </div>
 
-      {displayPosts.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <p className="text-muted-foreground">
-              📰 Shop blog coming soon!
-            </p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Vendors will be able to share updates and news with customers.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {displayPosts.slice(0, 3).map((post) => (
-            <Card
-              key={post.id}
-              className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer group"
-            >
-              <div className="h-40 bg-gradient-to-br from-primary/10 to-primary/20 flex items-center justify-center">
-                <span className="text-4xl">📝</span>
-              </div>
-              <CardContent className="p-4 space-y-3">
-                <h4 className="font-semibold line-clamp-2 group-hover:text-primary transition-colors">
-                  {post.title}
-                </h4>
-                <p className="text-sm text-muted-foreground line-clamp-2">
-                  {post.excerpt}
-                </p>
-                <div className="flex items-center justify-between pt-2">
-                  <span className="text-xs text-muted-foreground">
-                    {post.publishedAt}
-                  </span>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {blogs.map((blog) => {
+          const categoryLabel = BLOG_CATEGORIES.find((c) => c.slug === blog.category)?.name;
+          const timeAgo = formatDistanceToNow(new Date(blog.created_at), { addSuffix: true });
+          const excerpt = blog.body.length > 120 ? blog.body.slice(0, 120).trimEnd() + "…" : blog.body;
 
-      <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200 text-center">
-        <p className="text-sm text-blue-900">
-          💡 <strong>Feature Coming Soon:</strong> Vendors will be able to create and manage shop blogs to share updates with customers.
-        </p>
+          return (
+            <Link key={blog.id} href={`/shop/${shopSlug}/blogs/${blog.id}`}>
+              <Card className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer group h-full">
+                <div className="relative h-40 bg-gradient-to-br from-primary/10 to-primary/20 overflow-hidden">
+                  {blog.image_urls?.[0] ? (
+                    <Image
+                      src={blog.image_urls[0]}
+                      alt={blog.title}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-300"
+                      sizes="(max-width: 768px) 100vw, 33vw"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center">
+                      <span className="text-4xl opacity-30">📝</span>
+                    </div>
+                  )}
+                  {categoryLabel && (
+                    <div className="absolute top-2 left-2">
+                      <Badge className="text-xs bg-white/90 text-foreground hover:bg-white/90 text-[10px]">
+                        {categoryLabel}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+                <CardContent className="p-4 space-y-2">
+                  <h4 className="font-semibold text-sm line-clamp-2 group-hover:text-primary transition-colors">
+                    {blog.title}
+                  </h4>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{excerpt}</p>
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-xs text-muted-foreground">{timeAgo}</span>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Heart className="h-3 w-3" />{blog.like_count}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <MessageCircle className="h-3 w-3" />{blog.comment_count}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

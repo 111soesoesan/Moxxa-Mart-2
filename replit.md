@@ -54,12 +54,17 @@ Managed via Supabase migrations in `supabase/migrations/`:
 - `products` — shop products with JSONB attributes/variants
 - `orders` — customer orders with JSONB snapshots
 - `billing_proofs` — vendor subscription payment evidence
+- `shop_blogs` — vendor blog posts (title, body, image_urls[], category, published)
+- `blog_likes` — user likes per blog (unique per user+blog)
+- `blog_comments` — comments on blog posts (author, body)
+- `blog_shares` — share tracking events (nullable user_id for public shares)
 
 ## Key Features
 
 - **Customer**: Browse products/shops by category, search, cart, checkout (guest or authenticated), order tracking with payment proof upload
-- **Vendor**: Shop onboarding, product management, billing/subscription, inspection workflow; order list + order detail page with payment proof image viewer and inline status management
+- **Vendor**: Shop onboarding, product management, blog management (create/edit/delete with images, categories, draft/publish toggle, engagement stats), billing/subscription, inspection workflow; order list + order detail page with payment proof image viewer and inline status management
 - **Admin**: Shop approval/rejection (with full product preview via service-role client), billing proof verification, platform stats, orders overview
+- **Blogs**: Vendors publish posts (title, body, images, category, draft/publish). Authenticated users like, share, and comment. Engagement counts (likes, shares, comments) shown per-post and as aggregate stats in the vendor dashboard Blogs tab.
 
 ## Running
 

@@ -37,6 +37,7 @@ import {
   LogOut,
   ExternalLink,
   ChevronsUpDown,
+  Newspaper,
 } from "lucide-react";
 import { signOut } from "@/actions/auth";
 
@@ -65,6 +66,7 @@ const NAV_ITEMS = [
   { segment: null, label: "Dashboard", icon: LayoutDashboard, exact: true },
   { segment: "products", label: "Products", icon: Package, exact: false },
   { segment: "orders", label: "Orders", icon: ShoppingBag, exact: false },
+  { segment: "blogs", label: "Blogs", icon: Newspaper, exact: false },
   { segment: "payment-methods", label: "Payment Methods", icon: Banknote, exact: false },
   { segment: "billing", label: "Billing", icon: CreditCard, exact: false },
   { segment: "settings", label: "Settings", icon: Settings, exact: false },

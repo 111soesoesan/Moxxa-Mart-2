@@ -100,7 +100,7 @@ export default async function ShopPage({ params, searchParams }: Props) {
             description="Check out featured items and promotions"
             bannerUrl={shop.cover_url ?? undefined}
           />
-          <ShopBlogSection />
+          <ShopBlogSection shopId={shop.id} shopSlug={shop.slug} />
         </div>
 
         <Separator className="my-8" />

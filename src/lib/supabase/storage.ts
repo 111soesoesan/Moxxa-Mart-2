@@ -40,6 +40,11 @@ export async function uploadPaymentProof(file: File, orderId: string): Promise<s
   return signedUrl?.signedUrl ?? "";
 }
 
+export async function uploadBlogImage(file: File, shopId: string, blogId: string, index: number): Promise<string> {
+  const ext = file.name.split(".").pop();
+  return uploadFile("blog-images" as Bucket, `${shopId}/${blogId}/${index}.${ext}`, file);
+}
+
 export async function uploadBillingProof(file: File, shopId: string): Promise<string> {
   const supabase = createClient();
   const ext = file.name.split(".").pop();

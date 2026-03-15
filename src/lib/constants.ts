@@ -53,6 +53,17 @@ export const BILLING_PROOF_STATUSES = [
   { value: "rejected", label: "Rejected", color: "bg-red-100 text-red-800" },
 ] as const;
 
+export const BLOG_CATEGORIES = [
+  { slug: "updates", name: "Updates & News" },
+  { slug: "products", name: "Product Highlights" },
+  { slug: "behind-the-scenes", name: "Behind the Scenes" },
+  { slug: "tips", name: "Tips & Guides" },
+  { slug: "promotions", name: "Events & Promotions" },
+  { slug: "other", name: "Other" },
+] as const;
+
+export type BlogCategorySlug = (typeof BLOG_CATEGORIES)[number]["slug"];
+
 export const MAX_PRODUCT_IMAGES = 10;
 export const ITEMS_PER_PAGE = 20;
 
