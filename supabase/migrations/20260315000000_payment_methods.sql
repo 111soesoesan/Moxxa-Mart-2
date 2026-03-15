@@ -124,8 +124,7 @@ SELECT id, 'cash', 'Cash on Delivery', 'Payment on delivery', TRUE
 FROM public.shops
 WHERE NOT EXISTS (
   SELECT 1 FROM public.payment_methods WHERE shop_id = shops.id
-)
-ON CONFLICT (shop_id, name) DO NOTHING;
+);
 
 -- ─── BACKFILL PAYMENT_METHOD_IDS FOR EXISTING PRODUCTS ──────
 -- Assign default Cash on Delivery to all products without payment methods

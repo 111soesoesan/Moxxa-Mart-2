@@ -40,7 +40,8 @@ const schema = z.object({
   payment_wallet: z.string().optional(),
 });
 
-type OnboardingSchema = z.infer<typeof schema>;
+// Use input type to align with zodResolver behavior (optional inputs for defaults)
+type OnboardingSchema = z.input<typeof schema>;
 
 export default function OnboardingPage() {
   const router = useRouter();

@@ -12,9 +12,9 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
-  public: {
-    Tables: {
-      billing_proofs: {
+      public: {
+        Tables: {
+          billing_proofs: {
         Row: {
           admin_notes: string | null
           amount: number
@@ -25,7 +25,7 @@ export type Database = {
           status: string
           updated_at: string
           verified_at: string | null
-        }
+          }
         Insert: {
           admin_notes?: string | null
           amount: number
@@ -58,130 +58,197 @@ export type Database = {
           },
         ]
       }
-      orders: {
-        Row: {
-          created_at: string
-          customer_snapshot: Json
-          id: string
-          items_snapshot: Json
-          notes: string | null
-          payment_method: string
-          payment_proof_url: string | null
-          payment_status: string
-          shipping_fee: number
-          shop_id: string
-          status: string
-          subtotal: number
-          total: number
-          updated_at: string
-          user_id: string | null
+          ,
+          payment_methods: {
+            Row: {
+              id: string
+              shop_id: string
+              type: string
+              name: string
+              description: string | null
+              bank_name: string | null
+              account_holder: string | null
+              account_number: string | null
+              proof_required: boolean
+              is_active: boolean
+              created_at: string
+              updated_at: string
+            }
+            Insert: {
+              id?: string
+              shop_id: string
+              type: string
+              name: string
+              description?: string | null
+              bank_name?: string | null
+              account_holder?: string | null
+              account_number?: string | null
+              proof_required?: boolean
+              is_active?: boolean
+              created_at?: string
+              updated_at?: string
+            }
+            Update: {
+              id?: string
+              shop_id?: string
+              type?: string
+              name?: string
+              description?: string | null
+              bank_name?: string | null
+              account_holder?: string | null
+              account_number?: string | null
+              proof_required?: boolean
+              is_active?: boolean
+              created_at?: string
+              updated_at?: string
+            }
+            Relationships: [
+              {
+                foreignKeyName: "payment_methods_shop_id_fkey"
+                columns: ["shop_id"]
+                isOneToOne: false
+                referencedRelation: "shops"
+                referencedColumns: ["id"]
+              },
+            ]
+          }
+        orders: {
+          Row: {
+            created_at: string
+            customer_snapshot: Json
+            id: string
+            items_snapshot: Json
+            notes: string | null
+            payment_method: string
+            payment_method_id: string | null
+            payment_proof_url: string | null
+            payment_status: string
+            shipping_fee: number
+            shop_id: string
+            status: string
+            subtotal: number
+            total: number
+            updated_at: string
+            user_id: string | null
+          }
+          Insert: {
+            created_at?: string
+            customer_snapshot?: Json
+            id?: string
+            items_snapshot?: Json
+            notes?: string | null
+            payment_method?: string
+            payment_method_id?: string | null
+            payment_proof_url?: string | null
+            payment_status?: string
+            shipping_fee?: number
+            shop_id: string
+            status?: string
+            subtotal: number
+            total: number
+            updated_at?: string
+            user_id?: string | null
+          }
+          Update: {
+            created_at?: string
+            customer_snapshot?: Json
+            id?: string
+            items_snapshot?: Json
+            notes?: string | null
+            payment_method?: string
+            payment_method_id?: string | null
+            payment_proof_url?: string | null
+            payment_status?: string
+            shipping_fee?: number
+            shop_id?: string
+            status?: string
+            subtotal?: number
+            total?: number
+            updated_at?: string
+            user_id?: string | null
+          }
+          Relationships: [
+            {
+              foreignKeyName: "orders_shop_id_fkey"
+              columns: ["shop_id"]
+              isOneToOne: false
+              referencedRelation: "shops"
+              referencedColumns: ["id"]
+            },
+            {
+              foreignKeyName: "orders_user_id_fkey"
+              columns: ["user_id"]
+              isOneToOne: false
+              referencedRelation: "profiles"
+              referencedColumns: ["id"]
+            },
+            {
+              foreignKeyName: "orders_payment_method_id_fkey"
+              columns: ["payment_method_id"]
+              isOneToOne: false
+              referencedRelation: "payment_methods"
+              referencedColumns: ["id"]
+            },
+          ]
         }
-        Insert: {
-          created_at?: string
-          customer_snapshot?: Json
-          id?: string
-          items_snapshot?: Json
-          notes?: string | null
-          payment_method?: string
-          payment_proof_url?: string | null
-          payment_status?: string
-          shipping_fee?: number
-          shop_id: string
-          status?: string
-          subtotal: number
-          total: number
-          updated_at?: string
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          customer_snapshot?: Json
-          id?: string
-          items_snapshot?: Json
-          notes?: string | null
-          payment_method?: string
-          payment_proof_url?: string | null
-          payment_status?: string
-          shipping_fee?: number
-          shop_id?: string
-          status?: string
-          subtotal?: number
-          total?: number
-          updated_at?: string
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "orders_shop_id_fkey"
-            columns: ["shop_id"]
-            isOneToOne: false
-            referencedRelation: "shops"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "orders_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      products: {
-        Row: {
-          attributes: Json
-          category: string | null
-          condition: string
-          created_at: string
-          description: string | null
-          id: string
-          image_urls: string[]
-          is_active: boolean
-          list_on_marketplace: boolean
-          name: string
-          price: number
-          shop_id: string
-          slug: string
-          stock: number
-          updated_at: string
-          variants: Json
-        }
-        Insert: {
-          attributes?: Json
-          category?: string | null
-          condition?: string
-          created_at?: string
-          description?: string | null
-          id?: string
-          image_urls?: string[]
-          is_active?: boolean
-          list_on_marketplace?: boolean
-          name: string
-          price: number
-          shop_id: string
-          slug: string
-          stock?: number
-          updated_at?: string
-          variants?: Json
-        }
-        Update: {
-          attributes?: Json
-          category?: string | null
-          condition?: string
-          created_at?: string
-          description?: string | null
-          id?: string
-          image_urls?: string[]
-          is_active?: boolean
-          list_on_marketplace?: boolean
-          name?: string
-          price?: number
-          shop_id?: string
-          slug?: string
-          stock?: number
-          updated_at?: string
-          variants?: Json
-        }
+        products: {
+          Row: {
+            attributes: Json
+            category: string | null
+            condition: string
+            created_at: string
+            description: string | null
+            id: string
+            image_urls: string[]
+            is_active: boolean
+            list_on_marketplace: boolean
+            name: string
+            price: number
+            shop_id: string
+            slug: string
+            stock: number
+            updated_at: string
+            variants: Json
+            payment_method_ids: string[]
+          }
+          Insert: {
+            attributes?: Json
+            category?: string | null
+            condition?: string
+            created_at?: string
+            description?: string | null
+            id?: string
+            image_urls?: string[]
+            is_active?: boolean
+            list_on_marketplace?: boolean
+            name: string
+            price: number
+            shop_id: string
+            slug: string
+            stock?: number
+            updated_at?: string
+            variants?: Json
+            payment_method_ids?: string[]
+          }
+          Update: {
+            attributes?: Json
+            category?: string | null
+            condition?: string
+            created_at?: string
+            description?: string | null
+            id?: string
+            image_urls?: string[]
+            is_active?: boolean
+            list_on_marketplace?: boolean
+            name?: string
+            price?: number
+            shop_id?: string
+            slug?: string
+            stock?: number
+            updated_at?: string
+            variants?: Json
+            payment_method_ids?: string[]
+          }
         Relationships: [
           {
             foreignKeyName: "products_shop_id_fkey"

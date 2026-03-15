@@ -62,7 +62,8 @@ const paymentMethodSchema = z.object({
   is_active: z.boolean().default(true),
 });
 
-type PaymentMethodSchema = z.infer<typeof paymentMethodSchema>;
+// Use input type to align with zodResolver (defaults make some fields optional at input time)
+type PaymentMethodSchema = z.input<typeof paymentMethodSchema>;
 
 type PaymentMethod = {
   id: string;
