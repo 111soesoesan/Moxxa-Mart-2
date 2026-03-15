@@ -71,10 +71,51 @@ END;
 $$;
 
 -- Trigger to auto-create default cash payment when shop is created
+-- 1) Ensure pgcrypto (for gen_random_uuid) is available (optional if you already have another UUID function)
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- 2) Create or replace the trigger function
+CREATE OR REPLACE FUNCTION public.create_default_cash_payment()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Insert a default cash payment for the newly created shop.
+  -- Adjust column names as needed to match your payments table.
+  INSERT INTO public.payments (
+    id,
+    shop_id,
+    user_id,
+    amount_cents,
+    currency,
+    status,
+    method,
+    metadata,
+    created_at
+  ) VALUES (
+    gen_random_uuid(),          -- id
+    NEW.id,                    -- shop_id
+    NEW.owner_id,              -- user_id (assumes shops.owner_id exists)
+    0,                         -- amount_cents: default 0
+    'MMK',                     -- currency: change if needed
+    'pending',                 -- status: default pending
+    'cash',                    -- method: cash default
+    jsonb_build_object('note', 'Default cash payment created on shop creation'), -- metadata
+    NOW()                      -- created_at
+  );
+
+  RETURN NEW;
+END;
+$$;
+
+-- 3) (Re)create the trigger to call the function after insert on public.shops
 DROP TRIGGER IF EXISTS create_default_cash_on_shops ON public.shops;
+
 CREATE TRIGGER create_default_cash_on_shops
   AFTER INSERT ON public.shops
-  FOR EACH ROW EXECUTE FUNCTION public.create_default_cash_payment();
+  FOR EACH ROW
+  EXECUTE FUNCTION public.create_default_cash_payment();
 
 -- ─── CREATE DEFAULT CASH PAYMENTS FOR EXISTING SHOPS ────────
 -- This ensures backward compatibility for shops created before this migration
