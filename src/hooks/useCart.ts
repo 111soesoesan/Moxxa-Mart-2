@@ -49,12 +49,9 @@ function makeItemKey(item: CartItem): string {
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useCart() {
-  const [cart, setCart] = useState<Cart>(EMPTY_CART);
-
-  // Hydrate from localStorage on mount.
-  useEffect(() => {
-    setCart(readCart());
-  }, []);
+  // Initialize from localStorage once on mount via initializer to avoid
+  // calling setState synchronously inside an effect (lint rule).
+  const [cart, setCart] = useState<Cart>(() => readCart());
 
   const persist = useCallback((next: Cart) => {
     setCart(next);

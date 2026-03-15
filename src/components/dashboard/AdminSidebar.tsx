@@ -42,7 +42,7 @@ export type AdminProfile = {
 };
 
 type Props = { profile: AdminProfile };
-
+//Good
 const NAV_ITEMS = [
   { href: '/admin',         label: 'Overview',  icon: LayoutDashboard, exact: true },
   { href: '/admin/shops',   label: 'Shops',     icon: Store,         exact: false },

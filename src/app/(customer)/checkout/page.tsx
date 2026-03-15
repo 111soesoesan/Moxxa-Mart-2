@@ -161,7 +161,7 @@ export default function CheckoutPage() {
                       {...form.register("email")}
                     />
                   </FieldControl>
-                  <FieldDescription>Optional — we'll send order updates here.</FieldDescription>
+                  <FieldDescription>Optional — we&apos;ll send order updates here.</FieldDescription>
                   <FieldError />
                 </Field>
 
