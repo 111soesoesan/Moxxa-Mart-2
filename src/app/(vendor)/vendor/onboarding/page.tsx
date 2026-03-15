@@ -218,8 +218,6 @@ export default function OnboardingPage() {
               </Field>
             </CardContent>
           </Card>
-
-              </Card>
             </>
           )}
 
@@ -267,8 +265,6 @@ export default function OnboardingPage() {
               </Field>
             </CardContent>
           </Card>
-
-              </Card>
 
               <Card>
                 <CardHeader><CardTitle className="text-base">Guest Purchases</CardTitle></CardHeader>
