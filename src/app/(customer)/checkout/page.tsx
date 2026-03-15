@@ -1,40 +1,58 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { useState, useTransition, useEffect } from "react";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { useCartContext } from "@/context/CartContext";
 import { createOrder, validateCart } from "@/actions/orders";
+import { getShopPaymentMethods } from "@/actions/paymentMethods";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Alert } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Field, FieldLabel, FieldControl, FieldError, FieldDescription } from "@/components/ui/field";
 import { formatCurrency } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ShoppingBag, AlertTriangle } from "lucide-react";
+import { ShoppingBag, AlertTriangle, Banknote } from "lucide-react";
 
 const schema = z.object({
   full_name: z.string().min(1, "Full name is required"),
   phone: z.string().min(1, "Phone number is required"),
   email: z.union([z.string().email("Enter a valid email"), z.literal("")]).optional(),
   address: z.string().min(10, "Please enter your complete delivery address"),
+  payment_method_id: z.string().min(1, "Select a payment method"),
+  payment_proof_url: z.string().optional(),
   notes: z.string().optional(),
 });
 
 type CheckoutSchema = z.infer<typeof schema>;
+
+type PaymentMethod = {
+  id: string;
+  name: string;
+  type: string;
+  description: string | null;
+  bank_name: string | null;
+  account_holder: string | null;
+  account_number: string | null;
+  proof_required: boolean;
+  is_active: boolean;
+};
 
 export default function CheckoutPage() {
   const { cart, subtotal, clearCart } = useCartContext();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [validationIssues, setValidationIssues] = useState<string[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const form = useForm<CheckoutSchema>({
     resolver: zodResolver(schema),
@@ -43,12 +61,33 @@ export default function CheckoutPage() {
       phone: "",
       email: "",
       address: "",
+      payment_method_id: "",
+      payment_proof_url: "",
       notes: "",
     },
   });
 
   const errors = form.formState.errors;
   const rootError = errors.root?.message;
+  const selectedMethodId = form.watch("payment_method_id");
+  const selectedMethod = paymentMethods.find(m => m.id === selectedMethodId);
+
+  useEffect(() => {
+    if (!cart.shop_id) return;
+
+    (async () => {
+      const result = await getShopPaymentMethods(cart.shop_id!);
+      if (result.data) {
+        const activeOnly = result.data.filter(m => m.is_active);
+        setPaymentMethods(activeOnly);
+        // Pre-select first active payment method
+        if (activeOnly.length > 0) {
+          form.setValue("payment_method_id", activeOnly[0].id);
+        }
+      }
+      setLoading(false);
+    })();
+  }, [cart.shop_id, form]);
 
   if (cart.items.length === 0) {
     return (
@@ -90,6 +129,7 @@ export default function CheckoutPage() {
           address: values.address,
           email: values.email || undefined,
         },
+        payment_method_id: values.payment_method_id,
         notes: values.notes || undefined,
       });
 
@@ -178,6 +218,52 @@ export default function CheckoutPage() {
                   <FieldError />
                 </Field>
 
+                <Field error={errors.payment_method_id?.message}>
+                  <FieldLabel required>Payment Method</FieldLabel>
+                  <FieldDescription>
+                    Select how you want to pay for this order
+                  </FieldDescription>
+                  <Controller
+                    control={form.control}
+                    name="payment_method_id"
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange} disabled={loading}>
+                        <SelectTrigger aria-invalid={!!errors.payment_method_id}>
+                          <SelectValue placeholder="Select a payment method" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {paymentMethods.map((method) => (
+                            <SelectItem key={method.id} value={method.id}>
+                              {method.type === "cash" ? "💵" : "🏦"} {method.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  <FieldError />
+                </Field>
+
+                {selectedMethod && selectedMethod.type === "bank" && (
+                  <div className="p-3 border rounded-lg bg-blue-50 text-sm text-blue-900">
+                    <p className="font-semibold mb-2">Bank Transfer Details:</p>
+                    {selectedMethod.bank_name && (
+                      <p><strong>Bank:</strong> {selectedMethod.bank_name}</p>
+                    )}
+                    {selectedMethod.account_holder && (
+                      <p><strong>Account Holder:</strong> {selectedMethod.account_holder}</p>
+                    )}
+                    {selectedMethod.account_number && (
+                      <p><strong>Account Number:</strong> <code className="font-mono">{selectedMethod.account_number}</code></p>
+                    )}
+                    {selectedMethod.proof_required && (
+                      <p className="mt-2 text-orange-700 bg-orange-100 p-2 rounded">
+                        ⚠️ You'll need to upload proof of payment after placing your order.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <Field error={errors.notes?.message}>
                   <FieldLabel>Order Notes</FieldLabel>
                   <FieldControl>
@@ -222,7 +308,9 @@ export default function CheckoutPage() {
                   <span className="text-primary">{formatCurrency(subtotal)}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Payment is manual. You will receive the vendor&apos;s payment details on the order page.
+                  {selectedMethod?.type === "cash" 
+                    ? "Pay cash when your order arrives." 
+                    : "Send payment to the bank account. Upload proof on the order page."}
                 </p>
               </CardContent>
             </Card>

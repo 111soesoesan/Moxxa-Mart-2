@@ -24,8 +24,6 @@ const schema = z.object({
   phone: z.string().optional(),
   location: z.string().optional(),
   delivery_policy: z.string().optional(),
-  payment_bank: z.string().optional(),
-  payment_wallet: z.string().optional(),
   allow_guest_purchase: z.boolean(),
 });
 
@@ -47,8 +45,6 @@ export default function ShopSettingsPage() {
       phone: "",
       location: "",
       delivery_policy: "",
-      payment_bank: "",
-      payment_wallet: "",
       allow_guest_purchase: true,
     },
   });
@@ -61,15 +57,12 @@ export default function ShopSettingsPage() {
       const s = shops.find((s) => s.slug === shopSlug);
       if (s) {
         setShop(s);
-        const pi = s.payment_info as Record<string, string> | null;
         form.reset({
           name: s.name,
           description: s.description ?? "",
           phone: s.phone ?? "",
           location: s.location ?? "",
           delivery_policy: s.delivery_policy ?? "",
-          payment_bank: pi?.["Bank Transfer"] ?? "",
-          payment_wallet: pi?.["Mobile Wallet"] ?? "",
           allow_guest_purchase: s.allow_guest_purchase,
         });
       }
@@ -79,9 +72,6 @@ export default function ShopSettingsPage() {
 
   const onSubmit = (values: SettingsSchema) => {
     if (!shop) return;
-    const paymentInfo: Record<string, string> = {};
-    if (values.payment_bank) paymentInfo["Bank Transfer"] = values.payment_bank;
-    if (values.payment_wallet) paymentInfo["Mobile Wallet"] = values.payment_wallet;
 
     startTransition(async () => {
       const result = await updateShop(shop.id, {
@@ -91,7 +81,6 @@ export default function ShopSettingsPage() {
         location: values.location,
         delivery_policy: values.delivery_policy,
         allow_guest_purchase: values.allow_guest_purchase,
-        payment_info: paymentInfo,
       });
       if (result.error) {
         form.setError("root", { message: result.error });
@@ -185,28 +174,7 @@ export default function ShopSettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader><CardTitle className="text-base">Payment Details</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <FieldGroup>
-              <Field error={errors.payment_bank?.message}>
-                <FieldLabel>Bank Account</FieldLabel>
-                <FieldControl>
-                  <Input placeholder="Bank name + Account number" {...form.register("payment_bank")} />
-                </FieldControl>
-                <FieldError />
-              </Field>
 
-              <Field error={errors.payment_wallet?.message}>
-                <FieldLabel>Mobile Wallet (GCash / Maya)</FieldLabel>
-                <FieldControl>
-                  <Input placeholder="09XX XXX XXXX" {...form.register("payment_wallet")} />
-                </FieldControl>
-                <FieldError />
-              </Field>
-            </FieldGroup>
-          </CardContent>
-        </Card>
 
         <Card>
           <CardContent className="p-4">

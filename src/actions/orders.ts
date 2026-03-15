@@ -15,6 +15,7 @@ export type CreateOrderPayload = {
   shop_id: string;
   items: CartItem[];
   customer: GuestInfo;
+  payment_method_id: string;
   shipping_fee?: number;
   notes?: string;
 };
@@ -47,9 +48,9 @@ export async function createOrder(payload: CreateOrderPayload) {
       shipping_fee,
       total,
       notes: payload.notes ?? null,
+      payment_method_id: payload.payment_method_id,
       status: "pending",
       payment_status: "unpaid",
-      payment_method: "manual",
     })
     .select()
     .single();
@@ -62,7 +63,7 @@ export async function getOrderById(id: string) {
   const supabase = await createServiceClient();
   const { data } = await supabase
     .from("orders")
-    .select("*, shops(id, name, slug, logo_url, payment_info, phone)")
+    .select("*, shops(id, name, slug, logo_url, phone), payment_methods(id, name, type, bank_name, account_holder, account_number, proof_required)")
     .eq("id", id)
     .single();
   return data;

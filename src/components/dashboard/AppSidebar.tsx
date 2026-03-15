@@ -30,6 +30,7 @@ import {
   Package,
   ShoppingBag,
   CreditCard,
+  Banknote,
   Settings,
   Plus,
   Store,
@@ -37,7 +38,6 @@ import {
   ExternalLink,
   ChevronsUpDown,
 } from "lucide-react";
-import { signOut } from "@/actions/auth";
 
 export type SidebarShop = {
   id: string;
@@ -64,6 +64,7 @@ const NAV_ITEMS = [
   { segment: null,         label: "Dashboard", icon: LayoutDashboard, exact: true },
   { segment: "products",  label: "Products",  icon: Package , exact: false },
   { segment: "orders",    label: "Orders",    icon: ShoppingBag , exact: false },
+  { segment: "payment-methods", label: "Payment Methods", icon: Banknote, exact: false },
   { segment: "billing",   label: "Billing",   icon: CreditCard , exact: false },
   { segment: "settings",  label: "Settings",  icon: Settings , exact: false },
 ] as const;
