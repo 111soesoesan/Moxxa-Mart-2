@@ -3,12 +3,13 @@ import { getPublicProducts } from "@/actions/products";
 import { searchShops } from "@/actions/shops";
 import { ProductCard } from "@/components/shared/ProductCard";
 import { ShopCard } from "@/components/shared/ShopCard";
+import { ProductFilters } from "@/components/filters/ProductFilters";
 import { CategoryNav } from "@/components/layout/CategoryNav";
 import { SearchBar } from "@/components/layout/SearchBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 
-type Props = { searchParams: Promise<{ q?: string; category?: string; shop?: string }> };
+type Props = { searchParams: Promise<{ q?: string; category?: string; shop?: string; minPrice?: string; maxPrice?: string; condition?: string | string[]; inStock?: string; sort?: string }> };
 
 async function ShopResults({ query }: { query: string }) {
   const shops = await searchShops(query, 6);
@@ -24,13 +25,41 @@ async function ShopResults({ query }: { query: string }) {
   );
 }
 
-async function ProductResults({ query, category, shopId }: { query: string; category?: string; shopId?: string }) {
-  const products = await getPublicProducts({ query, category, shopId, limit: 40 });
+async function ProductResults({
+  query,
+  category,
+  shopId,
+  minPrice,
+  maxPrice,
+  condition,
+  inStock,
+  sort,
+}: {
+  query: string;
+  category?: string;
+  shopId?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  condition?: string[];
+  inStock?: boolean;
+  sort?: "newest" | "price-low-high" | "price-high-low";
+}) {
+  const products = await getPublicProducts({
+    query,
+    category,
+    shopId,
+    limit: 40,
+    minPrice,
+    maxPrice,
+    condition,
+    inStock,
+    sort,
+  });
   if (products.length === 0) {
     return (
       <div className="text-center py-16 text-muted-foreground">
         <p className="text-lg">No products found{query ? ` for "${query}"` : ""}.</p>
-        <p className="text-sm mt-1">Try different keywords or browse a category.</p>
+        <p className="text-sm mt-1">Try adjusting your filters or search terms.</p>
       </div>
     );
   }
@@ -56,6 +85,11 @@ export default async function SearchPage({ searchParams }: Props) {
   const query = params.q ?? "";
   const category = params.category;
   const shopId = params.shop;
+  const minPrice = params.minPrice ? parseInt(params.minPrice) : undefined;
+  const maxPrice = params.maxPrice ? parseInt(params.maxPrice) : undefined;
+  const condition = params.condition ? (Array.isArray(params.condition) ? params.condition : [params.condition]) : undefined;
+  const inStock = params.inStock === "true";
+  const sort = (params.sort as "newest" | "price-low-high" | "price-high-low") || "newest";
 
   return (
     <>
@@ -65,28 +99,38 @@ export default async function SearchPage({ searchParams }: Props) {
           <SearchBar initialValue={query} />
         </div>
 
-        {query ? (
-          <>
-            <Suspense fallback={null}>
-              <ShopResults query={query} />
-            </Suspense>
-
-            <div>
-              <p className="text-sm text-muted-foreground mb-4">
-                Products{category ? ` in ${category}` : ""} matching &ldquo;<strong>{query}</strong>&rdquo;
-              </p>
-              <Suspense fallback={<ResultsSkeleton />}>
-                <ProductResults query={query} category={category} shopId={shopId} />
-              </Suspense>
+        {query || category ? (
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Filters Sidebar */}
+            <div className="lg:col-span-1">
+              <ProductFilters />
             </div>
-          </>
-        ) : category ? (
-          <>
-            <p className="text-sm text-muted-foreground mb-4">Browsing <strong>{category}</strong></p>
-            <Suspense fallback={<ResultsSkeleton />}>
-              <ProductResults query="" category={category} />
-            </Suspense>
-          </>
+
+            {/* Results */}
+            <div className="lg:col-span-3">
+              <Suspense fallback={null}>
+                <ShopResults query={query} />
+              </Suspense>
+
+              <div>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Products{category ? ` in ${category}` : ""} matching &ldquo;<strong>{query || "browse"}</strong>&rdquo;
+                </p>
+                <Suspense fallback={<ResultsSkeleton />}>
+                  <ProductResults
+                    query={query}
+                    category={category}
+                    shopId={shopId}
+                    minPrice={minPrice}
+                    maxPrice={maxPrice}
+                    condition={condition}
+                    inStock={inStock}
+                    sort={sort}
+                  />
+                </Suspense>
+              </div>
+            </div>
+          </div>
         ) : (
           <p className="text-muted-foreground">Enter a search term or pick a category to find products.</p>
         )}

@@ -92,30 +92,121 @@ export async function getPublicProducts({
   query,
   limit = 20,
   offset = 0,
+  minPrice,
+  maxPrice,
+  condition,
+  inStock = false,
+  sort = "newest",
 }: {
   category?: string;
   shopId?: string;
   query?: string;
   limit?: number;
   offset?: number;
+  minPrice?: number;
+  maxPrice?: number;
+  condition?: string[];
+  inStock?: boolean;
+  sort?: "newest" | "price-low-high" | "price-high-low";
 }) {
   const supabase = await createClient();
   let req = supabase
     .from("products")
     .select("*, shops(id, name, slug, logo_url, status)")
     .eq("is_active", true)
-    .eq("list_on_marketplace", true)
-    .order("created_at", { ascending: false })
-    .range(offset, offset + limit - 1);
+    .eq("list_on_marketplace", true);
 
+  // Apply filters
   if (category) req = req.eq("category", category);
   if (shopId) req = req.eq("shop_id", shopId);
   if (query) req = req.ilike("name", `%${query}%`);
+  if (minPrice !== undefined) req = req.gte("price", minPrice);
+  if (maxPrice !== undefined) req = req.lte("price", maxPrice);
+  if (inStock) req = req.gt("stock", 0);
+
+  // Apply sorting
+  switch (sort) {
+    case "price-low-high":
+      req = req.order("price", { ascending: true });
+      break;
+    case "price-high-low":
+      req = req.order("price", { ascending: false });
+      break;
+    case "newest":
+    default:
+      req = req.order("created_at", { ascending: false });
+  }
+
+  req = req.range(offset, offset + limit - 1);
 
   const { data } = await req;
   return (data ?? []).filter((p) => {
     const shop = p.shops as { status?: string } | null;
-    return shop?.status === "active";
+    if (shop?.status !== "active") return false;
+    
+    // Filter by condition
+    if (condition && condition.length > 0 && !condition.includes(p.condition)) {
+      return false;
+    }
+    
+    return true;
+  });
+}
+
+export async function getShopProductsForDirectAccess({
+  shopId,
+  limit = 40,
+  offset = 0,
+  minPrice,
+  maxPrice,
+  condition,
+  inStock = false,
+  sort = "newest",
+}: {
+  shopId: string;
+  limit?: number;
+  offset?: number;
+  minPrice?: number;
+  maxPrice?: number;
+  condition?: string[];
+  inStock?: boolean;
+  sort?: "newest" | "price-low-high" | "price-high-low";
+}) {
+  const supabase = await createClient();
+  let req = supabase
+    .from("products")
+    .select("*, shops(id, name, slug, logo_url, status)")
+    .eq("shop_id", shopId)
+    .eq("is_active", true);
+
+  // Apply filters
+  if (minPrice !== undefined) req = req.gte("price", minPrice);
+  if (maxPrice !== undefined) req = req.lte("price", maxPrice);
+  if (inStock) req = req.gt("stock", 0);
+
+  // Apply sorting
+  switch (sort) {
+    case "price-low-high":
+      req = req.order("price", { ascending: true });
+      break;
+    case "price-high-low":
+      req = req.order("price", { ascending: false });
+      break;
+    case "newest":
+    default:
+      req = req.order("created_at", { ascending: false });
+  }
+
+  req = req.range(offset, offset + limit - 1);
+
+  const { data } = await req;
+  return (data ?? []).filter((p) => {
+    // Filter by condition
+    if (condition && condition.length > 0 && !condition.includes(p.condition)) {
+      return false;
+    }
+    
+    return true;
   });
 }
 

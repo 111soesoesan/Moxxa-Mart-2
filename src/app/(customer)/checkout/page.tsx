@@ -7,7 +7,7 @@ import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { useCartContext } from "@/context/CartContext";
 import { createOrder, validateCart } from "@/actions/orders";
-import { getShopPaymentMethods } from "@/actions/paymentMethods";
+import { getShopPaymentMethodsForCustomers } from "@/actions/paymentMethods";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -76,13 +76,12 @@ export default function CheckoutPage() {
     if (!cart.shop_id) return;
 
     (async () => {
-      const result = await getShopPaymentMethods(cart.shop_id!);
+      const result = await getShopPaymentMethodsForCustomers(cart.shop_id!);
       if (result.data) {
-        const activeOnly = result.data.filter(m => m.is_active);
-        setPaymentMethods(activeOnly);
-        // Pre-select first active payment method
-        if (activeOnly.length > 0) {
-          form.setValue("payment_method_id", activeOnly[0].id);
+        setPaymentMethods(result.data);
+        // Pre-select first payment method
+        if (result.data.length > 0) {
+          form.setValue("payment_method_id", result.data[0].id);
         }
       }
       setLoading(false);

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ShoppingCart, Store, User, LogOut, LayoutDashboard, Shield } from "lucide-react";
+import { ShoppingCart, Store, User, LogOut, LayoutDashboard, Shield, Building } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -41,6 +41,10 @@ export function Header({ profile }: { profile: Profile }) {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+              <Link href="/shops"><Building className="mr-2 h-4 w-4" />Shops</Link>
+            </Button>
+
             <Button
               variant="ghost"
               size="icon"

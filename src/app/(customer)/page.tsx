@@ -3,9 +3,11 @@ import { getPublicProducts } from "@/actions/products";
 import { getActiveShops } from "@/actions/shops";
 import { ProductCard } from "@/components/shared/ProductCard";
 import { ShopCard } from "@/components/shared/ShopCard";
+import { HeroBanner } from "@/components/shared/HeroBanner";
 import { CategoryNav } from "@/components/layout/CategoryNav";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
 
 type Props = { searchParams: Promise<{ category?: string }> };
@@ -33,11 +35,14 @@ async function ShopRow() {
   const shops = await getActiveShops(6);
   if (shops.length === 0) return null;
   return (
-    <section className="container mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">Featured Shops</h2>
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/search?type=shop">View all</Link>
+    <section className="container mx-auto px-4 py-12">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-bold">Featured Shops</h2>
+          <p className="text-sm text-muted-foreground mt-1">Explore curated sellers</p>
+        </div>
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/shops">Browse All</Link>
         </Button>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -61,6 +66,18 @@ function ProductGridSkeleton() {
   );
 }
 
+function PromoCard({ title, description, icon }: { title: string; description: string; icon: string }) {
+  return (
+    <Card className="overflow-hidden hover:shadow-md transition-shadow">
+      <CardContent className="p-6 space-y-3">
+        <div className="text-4xl">{icon}</div>
+        <h3 className="font-semibold">{title}</h3>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default async function HomePage({ searchParams }: Props) {
   const params = await searchParams;
   const category = params.category;
@@ -69,17 +86,61 @@ export default async function HomePage({ searchParams }: Props) {
     <>
       <CategoryNav activeCategory={category} />
 
-      <Suspense fallback={<div className="container mx-auto px-4 py-8"><Skeleton className="h-32 w-full rounded-xl" /></div>}>
-        <ShopRow />
-      </Suspense>
+      {!category && (
+        <>
+          {/* Hero Banner */}
+          <HeroBanner
+            title="Discover Amazing Products & Shops"
+            subtitle="Buy and sell from trusted vendors in your community. Curated marketplace with quality merchants."
+            ctaText="Browse Products"
+            ctaHref="/search"
+            secondaryCta={{
+              text: "Become a Vendor",
+              href: "/vendor/onboarding",
+            }}
+          />
 
+          {/* Value Propositions */}
+          <section className="container mx-auto px-4 py-12">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <PromoCard
+                icon="✨"
+                title="Quality Assured"
+                description="All shops and products are verified to ensure the best experience."
+              />
+              <PromoCard
+                icon="🚀"
+                title="Fast & Reliable"
+                description="Quick checkout and reliable payment methods for peace of mind."
+              />
+              <PromoCard
+                icon="🤝"
+                title="Support Community"
+                description="Shop from local vendors and support businesses in your area."
+              />
+            </div>
+          </section>
+
+          {/* Featured Shops */}
+          <Suspense fallback={<div className="container mx-auto px-4 py-8"><Skeleton className="h-32 w-full rounded-xl" /></div>}>
+            <ShopRow />
+          </Suspense>
+        </>
+      )}
+
+      {/* Products Section */}
       <section className="container mx-auto px-4 pb-12">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">
-            {category
-              ? `${category.charAt(0).toUpperCase() + category.slice(1)} Products`
-              : "Latest Products"}
-          </h2>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl font-bold">
+              {category
+                ? `${category.charAt(0).toUpperCase() + category.slice(1)} Products`
+                : "Latest Products"}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              {category ? "Browse all items in this category" : "Newly listed from trusted sellers"}
+            </p>
+          </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           <Suspense fallback={<ProductGridSkeleton />}>

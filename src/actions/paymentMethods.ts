@@ -32,6 +32,20 @@ export async function getShopPaymentMethods(shopId: string) {
   return { data, error: null };
 }
 
+export async function getShopPaymentMethodsForCustomers(shopId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("payment_methods")
+    .select("*")
+    .eq("shop_id", shopId)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false });
+
+  if (error) return { error: error.message, data: null };
+  return { data, error: null };
+}
+
 export async function createPaymentMethod(
   shopId: string,
   data: PaymentMethodFormData

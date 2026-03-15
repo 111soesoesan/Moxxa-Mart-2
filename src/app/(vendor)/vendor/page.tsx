@@ -6,6 +6,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { ShopShareCard } from "@/components/vendor/ShopShareCard";
 import { HubHeader } from "@/components/dashboard/HubHeader";
 import { Plus, Store, LayoutDashboard } from "lucide-react";
 
@@ -51,38 +52,53 @@ export default async function VendorHubPage() {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {shops.map((shop) => (
-              <Card key={shop.id} className="flex flex-col">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10 rounded-lg">
-                      <AvatarImage src={shop.logo_url ?? undefined} />
-                      <AvatarFallback className="rounded-lg font-semibold">
-                        {shop.name[0].toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-sm truncate">{shop.name}</CardTitle>
-                      <p className="text-xs text-muted-foreground truncate">/shop/{shop.slug}</p>
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    <StatusBadge type="shop" value={shop.status} />
-                    {shop.status === "rejected" && shop.rejection_reason && (
-                      <p className="text-xs text-destructive mt-1">{shop.rejection_reason}</p>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardFooter className="mt-auto pt-3">
-                  <Button asChild className="w-full" variant="outline" size="sm">
-                    <Link href={`/vendor/${shop.slug}`}>
-                      <LayoutDashboard className="mr-2 h-3.5 w-3.5" />Manage
-                    </Link>
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
+          <div className="space-y-6">
+            {/* Share Card - Prominent at top */}
+            {shops.length > 0 && (
+              <ShopShareCard
+                shopSlug={shops[0].slug}
+                shopName={shops[0].name}
+                status={shops[0].status as any}
+              />
+            )}
+
+            {/* Shops Grid */}
+            <div>
+              <h2 className="text-lg font-semibold mb-4">Your Shops</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {shops.map((shop) => (
+                  <Card key={shop.id} className="flex flex-col">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10 rounded-lg">
+                          <AvatarImage src={shop.logo_url ?? undefined} />
+                          <AvatarFallback className="rounded-lg font-semibold">
+                            {shop.name[0].toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <CardTitle className="text-sm truncate">{shop.name}</CardTitle>
+                          <p className="text-xs text-muted-foreground truncate">/shop/{shop.slug}</p>
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <StatusBadge type="shop" value={shop.status} />
+                        {shop.status === "rejected" && shop.rejection_reason && (
+                          <p className="text-xs text-destructive mt-1">{shop.rejection_reason}</p>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardFooter className="mt-auto pt-3">
+                      <Button asChild className="w-full" variant="outline" size="sm">
+                        <Link href={`/vendor/${shop.slug}`}>
+                          <LayoutDashboard className="mr-2 h-3.5 w-3.5" />Manage
+                        </Link>
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>

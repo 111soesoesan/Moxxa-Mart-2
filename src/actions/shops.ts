@@ -165,3 +165,55 @@ export async function searchShops(query: string, limit = 8) {
     .limit(limit);
   return data ?? [];
 }
+
+export async function getShopsWithFilters({
+  query,
+  location,
+  limit = 12,
+  offset = 0,
+  sort = "newest",
+}: {
+  query?: string;
+  location?: string;
+  limit?: number;
+  offset?: number;
+  sort?: "newest" | "products-high-low" | "alphabetical";
+}) {
+  const supabase = await createClient();
+  let req = supabase
+    .from("shops")
+    .select("*, products(id)", { count: "exact" })
+    .eq("status", "active");
+
+  // Apply filters
+  if (query) req = req.ilike("name", `%${query}%`);
+  if (location) req = req.ilike("location", `%${location}%`);
+
+  // Apply sorting
+  switch (sort) {
+    case "alphabetical":
+      req = req.order("name", { ascending: true });
+      break;
+    case "products-high-low":
+      req = req.order("created_at", { ascending: false }); // Will be sorted in client
+      break;
+    case "newest":
+    default:
+      req = req.order("created_at", { ascending: false });
+  }
+
+  req = req.range(offset, offset + limit - 1);
+
+  const { data } = await req;
+  
+  // Client-side sorting for product count
+  if (sort === "products-high-low" && data) {
+    return (data ?? []).sort((a, b) => {
+      const aCount = (a.products as any[]).length || 0;
+      const bCount = (b.products as any[]).length || 0;
+      return bCount - aCount;
+    });
+  }
+
+  return data ?? [];
+}
