@@ -325,7 +325,7 @@ function AppearanceTab({
           <div className="relative w-full h-40 rounded-lg overflow-hidden bg-gradient-to-br from-primary/10 to-primary/30 border">
             {(bannerPreview ?? existingBanner) && (
               <Image
-                src={bannerPreview ?? existingBanner}
+                src={(bannerPreview ?? existingBanner) || ""}
                 alt="Banner preview"
                 fill
                 className="object-cover"
