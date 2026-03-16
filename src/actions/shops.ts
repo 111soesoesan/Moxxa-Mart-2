@@ -10,11 +10,19 @@ export type ShopFormData = {
   description?: string;
   logo_url?: string;
   cover_url?: string;
+  profile_image_url?: string;
+  banner_image_url?: string;
   phone?: string;
   location?: string;
   delivery_policy?: string;
+  shop_bio?: string;
   payment_info?: Record<string, string>;
   allow_guest_purchase?: boolean;
+  promotion_enabled?: boolean;
+  promotion_title?: string;
+  promotion_body?: string;
+  promotion_button_text?: string;
+  promotion_button_link?: string;
 };
 
 export async function createShop(data: ShopFormData) {

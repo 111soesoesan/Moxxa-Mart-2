@@ -1,12 +1,13 @@
 "use client";
 
-import { useTransition, useState } from "react";
+import { useTransition, useState, useRef } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { createShop, getMyShops } from "@/actions/shops";
+import { createShop, getMyShops, updateShop } from "@/actions/shops";
 import { createPaymentMethod } from "@/actions/paymentMethods";
+import { uploadShopProfileImage, uploadShopBanner } from "@/lib/supabase/storage";
 import { slugify } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,39 +16,44 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Field, FieldLabel, FieldControl, FieldError, FieldDescription, FieldGroup } from "@/components/ui/field";
 import { toast } from "sonner";
-import { Check, ChevronRight } from "lucide-react";
+import { Check, ChevronRight, Upload, ImageIcon } from "lucide-react";
+import Image from "next/image";
+
+const TOTAL_STEPS = 4;
 
 const schema = z.object({
-  // Step 1: Shop Identity
   name: z.string().min(1, "Shop name is required"),
   slug: z
     .string()
     .min(1, "Shop URL is required")
     .regex(/^[a-z0-9-]+$/, "Only lowercase letters, numbers, and dashes"),
   description: z.string().optional(),
-  
-  // Step 2: Contact & Fulfillment
   phone: z.string().optional(),
   location: z.string().optional(),
   delivery_policy: z.string().optional(),
   allow_guest_purchase: z.boolean(),
-  
-  // Step 3: Payment Methods (optional)
   setup_payment_methods: z.boolean().default(false),
   payment_bank: z.string().optional(),
   payment_wallet: z.string().optional(),
 });
 
-// Use input type to align with zodResolver behavior (optional inputs for defaults)
 type OnboardingSchema = z.input<typeof schema>;
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [step, setStep] = useState(1);
-  const [createdShopId, setCreatedShopId] = useState<string | null>(null);
+
+  // Branding state (step 3) — stored as Files, uploaded after shop creation
+  const profileRef = useRef<HTMLInputElement>(null);
+  const bannerRef = useRef<HTMLInputElement>(null);
+  const [profileFile, setProfileFile] = useState<File | null>(null);
+  const [profilePreview, setProfilePreview] = useState<string | null>(null);
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const [bannerPreview, setBannerPreview] = useState<string | null>(null);
 
   const form = useForm<OnboardingSchema>({
     resolver: zodResolver(schema),
@@ -74,24 +80,28 @@ export default function OnboardingPage() {
     form.setValue("slug", slugify(name), { shouldValidate: true });
   };
 
-  const canProceedToStep2 = () => {
-    return form.formState.isValid && form.watch("name") && form.watch("slug");
+  const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProfileFile(file);
+    setProfilePreview(URL.createObjectURL(file));
+  };
+
+  const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBannerFile(file);
+    setBannerPreview(URL.createObjectURL(file));
   };
 
   const onSubmit = (values: OnboardingSchema) => {
-    if (step < 3) {
-      // Move to next step without submitting
-      if (step === 1) {
-        setStep(2);
-      } else if (step === 2) {
-        setStep(3);
-      }
+    if (step < TOTAL_STEPS) {
+      setStep(step + 1);
       return;
     }
 
-    // Step 3 - Final submission
+    // Final step — create shop then upload branding if provided
     startTransition(async () => {
-      // Create shop
       const shopResult = await createShop({
         name: values.name,
         slug: values.slug,
@@ -107,19 +117,37 @@ export default function OnboardingPage() {
         return;
       }
 
-      setCreatedShopId(shopResult.data.id);
+      const shopId = shopResult.data.id;
+      const shopSlug = shopResult.data.slug;
+
+      // Upload branding images if provided
+      const brandingUpdates: Record<string, string> = {};
+      try {
+        if (profileFile) {
+          brandingUpdates.profile_image_url = await uploadShopProfileImage(profileFile, shopId);
+        }
+        if (bannerFile) {
+          brandingUpdates.banner_image_url = await uploadShopBanner(bannerFile, shopId);
+        }
+      } catch {
+        toast.error("Images couldn't be uploaded — you can add them later in Settings > Appearance.");
+      }
+
+      if (Object.keys(brandingUpdates).length > 0) {
+        await updateShop(shopId, brandingUpdates);
+      }
 
       // Optionally create additional payment methods
       if (values.setup_payment_methods) {
         if (values.payment_bank) {
-          await createPaymentMethod(shopResult.data.id, {
+          await createPaymentMethod(shopId, {
             type: "bank",
             name: "Bank Transfer",
             description: values.payment_bank,
           });
         }
         if (values.payment_wallet) {
-          await createPaymentMethod(shopResult.data.id, {
+          await createPaymentMethod(shopId, {
             type: "bank",
             name: "Mobile Wallet",
             description: values.payment_wallet,
@@ -128,7 +156,7 @@ export default function OnboardingPage() {
       }
 
       toast.success("Shop created! Now let's add your first product.");
-      router.push(`/vendor/${shopResult.data.slug}/products/new`);
+      router.push(`/vendor/${shopSlug}/products/new`);
     });
   };
 
@@ -142,10 +170,10 @@ export default function OnboardingPage() {
 
         {/* Step Indicator */}
         <div className="mb-8 flex items-center justify-between">
-          {[1, 2, 3].map((s) => (
+          {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((s) => (
             <div key={s} className="flex items-center flex-1">
               <div
-                className={`flex items-center justify-center w-10 h-10 rounded-full font-semibold ${
+                className={`flex items-center justify-center w-10 h-10 rounded-full font-semibold text-sm ${
                   s < step
                     ? "bg-green-600 text-white"
                     : s === step
@@ -155,7 +183,7 @@ export default function OnboardingPage() {
               >
                 {s < step ? <Check className="h-5 w-5" /> : s}
               </div>
-              {s < 3 && (
+              {s < TOTAL_STEPS && (
                 <div className={`flex-1 h-1 mx-2 ${s < step ? "bg-green-600" : "bg-muted"}`} />
               )}
             </div>
@@ -173,52 +201,52 @@ export default function OnboardingPage() {
                 <p className="text-sm text-muted-foreground">Create your shop name and URL</p>
               </div>
 
-          <Card>
-            <CardHeader><CardTitle className="text-base">Public Identity</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <Field error={errors.name?.message}>
-                <FieldLabel required>Shop Name</FieldLabel>
-                <FieldControl>
-                  <Input
-                    placeholder="My Awesome Shop"
-                    value={form.watch("name")}
-                    onChange={(e) => handleNameChange(e.target.value)}
-                  />
-                </FieldControl>
-                <FieldError />
-              </Field>
+              <Card>
+                <CardHeader><CardTitle className="text-base">Public Identity</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                  <Field error={errors.name?.message}>
+                    <FieldLabel required>Shop Name</FieldLabel>
+                    <FieldControl>
+                      <Input
+                        placeholder="My Awesome Shop"
+                        value={form.watch("name")}
+                        onChange={(e) => handleNameChange(e.target.value)}
+                      />
+                    </FieldControl>
+                    <FieldError />
+                  </Field>
 
-              <Field error={errors.slug?.message}>
-                <FieldLabel required>Shop URL</FieldLabel>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground shrink-0">moxxa.com/shop/</span>
-                  <FieldControl>
-                    <Input
-                      placeholder="my-awesome-shop"
-                      {...form.register("slug")}
-                      onChange={(e) =>
-                        form.setValue("slug", slugify(e.target.value), { shouldValidate: true })
-                      }
-                    />
-                  </FieldControl>
-                </div>
-                <FieldDescription>This becomes your public shop link.</FieldDescription>
-                <FieldError />
-              </Field>
+                  <Field error={errors.slug?.message}>
+                    <FieldLabel required>Shop URL</FieldLabel>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground shrink-0">moxxa.com/shop/</span>
+                      <FieldControl>
+                        <Input
+                          placeholder="my-awesome-shop"
+                          {...form.register("slug")}
+                          onChange={(e) =>
+                            form.setValue("slug", slugify(e.target.value), { shouldValidate: true })
+                          }
+                        />
+                      </FieldControl>
+                    </div>
+                    <FieldDescription>This becomes your public shop link.</FieldDescription>
+                    <FieldError />
+                  </Field>
 
-              <Field error={errors.description?.message}>
-                <FieldLabel>About the Shop</FieldLabel>
-                <FieldControl>
-                  <Textarea
-                    placeholder="Tell customers what you sell…"
-                    rows={3}
-                    {...form.register("description")}
-                  />
-                </FieldControl>
-                <FieldError />
-              </Field>
-            </CardContent>
-          </Card>
+                  <Field error={errors.description?.message}>
+                    <FieldLabel>About the Shop</FieldLabel>
+                    <FieldControl>
+                      <Textarea
+                        placeholder="Tell customers what you sell…"
+                        rows={3}
+                        {...form.register("description")}
+                      />
+                    </FieldControl>
+                    <FieldError />
+                  </Field>
+                </CardContent>
+              </Card>
             </>
           )}
 
@@ -231,41 +259,41 @@ export default function OnboardingPage() {
                 <p className="text-sm text-muted-foreground">How will you deliver orders?</p>
               </div>
 
-          <Card>
-            <CardHeader><CardTitle className="text-base">Contact & Fulfillment</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <Field error={errors.phone?.message}>
-                <FieldLabel>Contact Phone</FieldLabel>
-                <FieldControl>
-                  <Input type="tel" placeholder="09XX XXX XXXX" {...form.register("phone")} />
-                </FieldControl>
-                <FieldError />
-              </Field>
+              <Card>
+                <CardHeader><CardTitle className="text-base">Contact & Fulfillment</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                  <Field error={errors.phone?.message}>
+                    <FieldLabel>Contact Phone</FieldLabel>
+                    <FieldControl>
+                      <Input type="tel" placeholder="09XX XXX XXXX" {...form.register("phone")} />
+                    </FieldControl>
+                    <FieldError />
+                  </Field>
 
-              <Field error={errors.location?.message}>
-                <FieldLabel>Physical Location</FieldLabel>
-                <FieldControl>
-                  <Input
-                    placeholder="Barangay, City/Municipality, Province"
-                    {...form.register("location")}
-                  />
-                </FieldControl>
-                <FieldError />
-              </Field>
+                  <Field error={errors.location?.message}>
+                    <FieldLabel>Physical Location</FieldLabel>
+                    <FieldControl>
+                      <Input
+                        placeholder="Barangay, City/Municipality, Province"
+                        {...form.register("location")}
+                      />
+                    </FieldControl>
+                    <FieldError />
+                  </Field>
 
-              <Field error={errors.delivery_policy?.message}>
-                <FieldLabel>Delivery & Refund Policy</FieldLabel>
-                <FieldControl>
-                  <Textarea
-                    placeholder="Describe your delivery timeline, coverage, and refund policy…"
-                    rows={4}
-                    {...form.register("delivery_policy")}
-                  />
-                </FieldControl>
-                <FieldError />
-              </Field>
-            </CardContent>
-          </Card>
+                  <Field error={errors.delivery_policy?.message}>
+                    <FieldLabel>Delivery & Refund Policy</FieldLabel>
+                    <FieldControl>
+                      <Textarea
+                        placeholder="Describe your delivery timeline, coverage, and refund policy…"
+                        rows={4}
+                        {...form.register("delivery_policy")}
+                      />
+                    </FieldControl>
+                    <FieldError />
+                  </Field>
+                </CardContent>
+              </Card>
 
               <Card>
                 <CardHeader><CardTitle className="text-base">Guest Purchases</CardTitle></CardHeader>
@@ -290,12 +318,79 @@ export default function OnboardingPage() {
             </>
           )}
 
-          {/* STEP 3: Payment Methods (Optional) */}
+          {/* STEP 3: Branding (optional) */}
           {step >= 3 && (
             <>
               <Separator className="my-6" />
               <div className="mb-4">
-                <h2 className="text-lg font-semibold">Step 3: Additional Payment Methods (Optional)</h2>
+                <h2 className="text-lg font-semibold">Step 3: Branding <span className="text-muted-foreground font-normal text-sm">(Optional)</span></h2>
+                <p className="text-sm text-muted-foreground">Add a profile photo and banner image to make your shop stand out.</p>
+              </div>
+
+              {/* Banner */}
+              <Card>
+                <CardHeader><CardTitle className="text-base">Banner Image</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="relative w-full h-32 rounded-lg overflow-hidden bg-gradient-to-br from-primary/10 to-primary/30 border">
+                    {bannerPreview ? (
+                      <Image src={bannerPreview} alt="Banner preview" fill className="object-cover" sizes="672px" />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-muted-foreground gap-2">
+                        <ImageIcon className="h-5 w-5" />
+                        <span className="text-sm">No banner yet</span>
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => bannerRef.current?.click()}
+                  >
+                    <Upload className="h-3.5 w-3.5 mr-1.5" />
+                    {bannerPreview ? "Change Banner" : "Upload Banner"}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">Recommended: 1200×400px. JPG or PNG.</p>
+                  <input ref={bannerRef} type="file" accept="image/*" className="hidden" onChange={handleBannerChange} />
+                </CardContent>
+              </Card>
+
+              {/* Profile Image */}
+              <Card>
+                <CardHeader><CardTitle className="text-base">Profile Image</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-20 w-20 border-2 border-border">
+                      <AvatarImage src={profilePreview ?? undefined} alt="Profile" />
+                      <AvatarFallback className="text-2xl bg-primary/10 text-primary font-bold">
+                        {form.watch("name")?.[0] ?? "S"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => profileRef.current?.click()}
+                      >
+                        <Upload className="h-3.5 w-3.5 mr-1.5" />
+                        {profilePreview ? "Change Photo" : "Upload Photo"}
+                      </Button>
+                      <p className="text-xs text-muted-foreground mt-1">Recommended: 400×400px. JPG or PNG.</p>
+                    </div>
+                  </div>
+                  <input ref={profileRef} type="file" accept="image/*" className="hidden" onChange={handleProfileChange} />
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          {/* STEP 4: Payment Methods (Optional) */}
+          {step >= 4 && (
+            <>
+              <Separator className="my-6" />
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold">Step 4: Additional Payment Methods <span className="text-muted-foreground font-normal text-sm">(Optional)</span></h2>
                 <p className="text-sm text-muted-foreground">You already have "Cash on Delivery" enabled. Add more if you want.</p>
               </div>
 
@@ -346,7 +441,7 @@ export default function OnboardingPage() {
             </>
           )}
 
-          {/* Navigation Buttons */}
+          {/* Navigation */}
           <div className="flex gap-3">
             {step > 1 && (
               <Button
@@ -360,11 +455,11 @@ export default function OnboardingPage() {
             )}
             <Button
               type="submit"
-              disabled={isPending || (step === 1 && !canProceedToStep2())}
+              disabled={isPending || (step === 1 && (!form.watch("name") || !form.watch("slug")))}
               className="flex-1"
             >
-              {step < 3 ? (
-                <>Next<ChevronRight className="h-4 w-4 ml-1" /></>
+              {step < TOTAL_STEPS ? (
+                <>Next <ChevronRight className="h-4 w-4 ml-1" /></>
               ) : (
                 isPending ? "Creating shop…" : "Create Shop"
               )}

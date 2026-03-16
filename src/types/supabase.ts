@@ -293,6 +293,7 @@ export type Database = {
       shops: {
         Row: {
           allow_guest_purchase: boolean
+          banner_image_url: string | null
           cover_url: string | null
           created_at: string
           delivery_policy: string | null
@@ -306,7 +307,14 @@ export type Database = {
           owner_id: string
           payment_info: Json
           phone: string | null
+          profile_image_url: string | null
+          promotion_body: string | null
+          promotion_button_link: string | null
+          promotion_button_text: string | null
+          promotion_enabled: boolean
+          promotion_title: string | null
           rejection_reason: string | null
+          shop_bio: string | null
           slug: string
           status: string
           subscription_expires_at: string | null
@@ -314,6 +322,7 @@ export type Database = {
         }
         Insert: {
           allow_guest_purchase?: boolean
+          banner_image_url?: string | null
           cover_url?: string | null
           created_at?: string
           delivery_policy?: string | null
@@ -327,7 +336,14 @@ export type Database = {
           owner_id: string
           payment_info?: Json
           phone?: string | null
+          profile_image_url?: string | null
+          promotion_body?: string | null
+          promotion_button_link?: string | null
+          promotion_button_text?: string | null
+          promotion_enabled?: boolean
+          promotion_title?: string | null
           rejection_reason?: string | null
+          shop_bio?: string | null
           slug: string
           status?: string
           subscription_expires_at?: string | null
@@ -335,6 +351,7 @@ export type Database = {
         }
         Update: {
           allow_guest_purchase?: boolean
+          banner_image_url?: string | null
           cover_url?: string | null
           created_at?: string
           delivery_policy?: string | null
@@ -348,7 +365,14 @@ export type Database = {
           owner_id?: string
           payment_info?: Json
           phone?: string | null
+          profile_image_url?: string | null
+          promotion_body?: string | null
+          promotion_button_link?: string | null
+          promotion_button_text?: string | null
+          promotion_enabled?: boolean
+          promotion_title?: string | null
           rejection_reason?: string | null
+          shop_bio?: string | null
           slug?: string
           status?: string
           subscription_expires_at?: string | null

@@ -22,9 +22,11 @@ src/
     (vendor)/    # Vendor dashboard - shop management, products, billing
     api/         # API routes (Supabase auth callback)
   components/
+    admin/       # ShopApprovalActions (client component for approve/reject)
     dashboard/   # Vendor dashboard shell — AppSidebar, DashboardShell, HubHeader; AdminSidebar
     layout/      # Header, Footer, CartDrawer, SearchBar, CategoryNav
     shared/      # ProductCard, ShopCard, StatusBadge, ImageUpload
+    shop/        # ShopHeader, PromotionBar, ShopSecondaryNav, LatestProductsSection, PromotionalBanner, ShopBlogSection
     vendor/      # OrderStatusActions (client component for status/mark-paid controls)
     ui/          # shadcn/ui components (includes sidebar.tsx)
   context/       # CartContext (localStorage-based cart)
@@ -50,7 +52,7 @@ Set in `.replit` userenv:
 
 Managed via Supabase migrations in `supabase/migrations/`:
 - `profiles` — linked to auth.users, with role (customer/vendor/admin)
-- `shops` — vendor shops with status workflow (draft → pending → active)
+- `shops` — vendor shops with status workflow (draft → pending → active); includes `profile_image_url`, `banner_image_url`, `shop_bio` (max 200 chars), `promotion_enabled`, `promotion_title`, `promotion_body`, `promotion_button_text`, `promotion_button_link`
 - `products` — shop products with JSONB attributes/variants
 - `orders` — customer orders with JSONB snapshots
 - `billing_proofs` — vendor subscription payment evidence
@@ -62,7 +64,7 @@ Managed via Supabase migrations in `supabase/migrations/`:
 ## Key Features
 
 - **Customer**: Browse products/shops by category, search, cart, checkout (guest or authenticated), order tracking with payment proof upload
-- **Vendor**: Shop onboarding, product management, blog management (create/edit/delete with images, categories, draft/publish toggle, engagement stats), billing/subscription, inspection workflow; order list + order detail page with payment proof image viewer and inline status management
+- **Vendor**: Shop onboarding (4-step: Identity → Contact/Fulfillment → Branding → Payment Methods), product management, blog management, billing/subscription, inspection workflow; Settings page with 4 tabs (General, Appearance, Promotions, Checkout); order list + order detail page with payment proof image viewer and inline status management
 - **Admin**: Shop approval/rejection (with full product preview via service-role client), billing proof verification, platform stats, orders overview
 - **Blogs**: Vendors publish posts (title, body, images, category, draft/publish). Authenticated users like, share, and comment. Engagement counts (likes, shares, comments) shown per-post and as aggregate stats in the vendor dashboard Blogs tab.
 

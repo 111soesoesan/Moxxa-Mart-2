@@ -30,6 +30,16 @@ export async function uploadShopCover(file: File, shopId: string): Promise<strin
   return uploadFile("shop-assets", `${shopId}/cover.${ext}`, file);
 }
 
+export async function uploadShopProfileImage(file: File, shopId: string): Promise<string> {
+  const ext = file.name.split(".").pop();
+  return uploadFile("shop-assets", `${shopId}/profile.${ext}`, file);
+}
+
+export async function uploadShopBanner(file: File, shopId: string): Promise<string> {
+  const ext = file.name.split(".").pop();
+  return uploadFile("shop-assets", `${shopId}/banner.${ext}`, file);
+}
+
 export async function uploadPaymentProof(file: File, orderId: string): Promise<string> {
   const supabase = createClient();
   const ext = file.name.split(".").pop();

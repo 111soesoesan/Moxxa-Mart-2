@@ -1,13 +1,8 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { getShopBySlug } from "@/actions/shops";
 import { getShopBlogsPublic } from "@/actions/blogs";
 import { BlogCard } from "@/components/shared/BlogCard";
 import { BlogFilters } from "@/components/blog/BlogFilters";
-import { ShopSecondaryNav } from "@/components/shop/ShopSecondaryNav";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
 import { Suspense } from "react";
 
 type Props = {
@@ -32,38 +27,21 @@ export default async function ShopBlogsPage({ params, searchParams }: Props) {
   });
 
   return (
-    <div>
-      {/* Secondary Navigation */}
-      <ShopSecondaryNav shopSlug={slug} />
-
-      <div className="container mx-auto px-4 py-8">
-
-      {/* Shop header */}
-      <div className="flex items-center gap-3 mb-8">
-        <Avatar className="h-12 w-12 border-2 border-border">
-          <AvatarImage src={shop.logo_url ?? undefined} />
-          <AvatarFallback>{shop.name[0]}</AvatarFallback>
-        </Avatar>
-        <div>
-          <p className="text-sm text-muted-foreground">Blog</p>
-          <h1 className="text-2xl font-bold">{shop.name}</h1>
-        </div>
-      </div>
-
-      {/* Filters */}
+    <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
         <Suspense>
           <BlogFilters />
         </Suspense>
       </div>
 
-      {/* Blog grid */}
       {blogs.length === 0 ? (
         <div className="py-20 text-center">
           <p className="text-4xl mb-4">📝</p>
           <p className="font-semibold text-lg mb-1">No posts found</p>
           <p className="text-sm text-muted-foreground">
-            {category ? "Try removing the category filter." : "This shop hasn't published any blog posts yet."}
+            {category
+              ? "Try removing the category filter."
+              : "This shop hasn't published any blog posts yet."}
           </p>
         </div>
       ) : (
@@ -78,7 +56,6 @@ export default async function ShopBlogsPage({ params, searchParams }: Props) {
           </div>
         </>
       )}
-      </div>
     </div>
   );
 }
