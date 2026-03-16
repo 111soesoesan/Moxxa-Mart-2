@@ -4,6 +4,7 @@ import { getShopBySlug } from "@/actions/shops";
 import { getShopBlogsPublic } from "@/actions/blogs";
 import { BlogCard } from "@/components/shared/BlogCard";
 import { BlogFilters } from "@/components/blog/BlogFilters";
+import { ShopSecondaryNav } from "@/components/shop/ShopSecondaryNav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -31,13 +32,11 @@ export default async function ShopBlogsPage({ params, searchParams }: Props) {
   });
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Back to shop */}
-      <Button variant="ghost" size="sm" asChild className="mb-6 -ml-2">
-        <Link href={`/shop/${slug}`}>
-          <ArrowLeft className="h-4 w-4 mr-1.5" />Back to shop
-        </Link>
-      </Button>
+    <div>
+      {/* Secondary Navigation */}
+      <ShopSecondaryNav shopSlug={slug} />
+
+      <div className="container mx-auto px-4 py-8">
 
       {/* Shop header */}
       <div className="flex items-center gap-3 mb-8">
@@ -79,6 +78,7 @@ export default async function ShopBlogsPage({ params, searchParams }: Props) {
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }
