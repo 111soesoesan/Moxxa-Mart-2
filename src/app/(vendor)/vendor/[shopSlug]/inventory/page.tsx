@@ -7,6 +7,7 @@ import {
   getInventoryStats,
   updateInventoryManual,
   toggleInventoryTracking,
+  setManualStockStatus,
   type InventoryItem,
 } from "@/actions/inventory";
 import { getShopBySlug } from "@/actions/shops";
@@ -37,6 +38,7 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [settingManualId, setSettingManualId] = useState<string | null>(null);
 
   const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
   const [newQty, setNewQty] = useState("");
@@ -126,6 +128,24 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
       ]);
       setLowStockItems(lowStock as InventoryItem[]);
       setStats(inventoryStats);
+    }
+  };
+
+  const handleManualStatus = async (item: InventoryItem, inStock: boolean) => {
+    setSettingManualId(item.product_id);
+    const result = await setManualStockStatus(item.product_id, inStock);
+    setSettingManualId(null);
+    if (result?.error) {
+      toast.error(result.error);
+    } else {
+      // Optimistically update the displayed stock_quantity
+      setInventoryItems((prev) =>
+        prev.map((i) =>
+          i.product_id === item.product_id
+            ? { ...i, stock_quantity: inStock ? 1 : 0 }
+            : i
+        )
+      );
     }
   };
 
@@ -313,10 +333,18 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
                             : "—"}
                         </td>
 
-                        {/* Status badge */}
+                        {/* Status — manual picker when untracked, badge when tracked */}
                         <td className="py-3 px-4 text-center">
                           {!isTracked ? (
-                            <Badge variant="secondary" className="text-xs">Not Tracked</Badge>
+                            <select
+                              value={item.stock_quantity > 0 ? "in" : "out"}
+                              onChange={(e) => handleManualStatus(item, e.target.value === "in")}
+                              disabled={settingManualId === item.product_id}
+                              className="text-xs border rounded px-2 py-1 bg-background cursor-pointer disabled:opacity-50"
+                            >
+                              <option value="in">In Stock</option>
+                              <option value="out">Out of Stock</option>
+                            </select>
                           ) : isOut ? (
                             <Badge variant="secondary" className="text-xs">Out of Stock</Badge>
                           ) : isLow ? (

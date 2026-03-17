@@ -280,6 +280,41 @@ export async function getInventoryStats(shopId: string) {
   };
 }
 
+export async function setManualStockStatus(productId: string, inStock: boolean) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: product } = await supabase
+    .from("products")
+    .select("shop_id, shops(owner_id, slug)")
+    .eq("id", productId)
+    .single();
+
+  if (!product) return { error: "Product not found" };
+  const shop = product.shops as { owner_id: string; slug: string } | null;
+  if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
+
+  const qty = inStock ? 1 : 0;
+
+  // Update products.stock for the checkout availability check
+  const { error: prodErr } = await supabase
+    .from("products")
+    .update({ stock: qty })
+    .eq("id", productId);
+  if (prodErr) return { error: prodErr.message };
+
+  // Keep inventory.stock_quantity in sync so the page reflects the status
+  const { error: invErr } = await supabase
+    .from("inventory")
+    .update({ stock_quantity: qty })
+    .eq("product_id", productId);
+  if (invErr) return { error: invErr.message };
+
+  revalidatePath(`/vendor/${shop.slug}/inventory`);
+  return { success: true };
+}
+
 export async function checkProductAvailability(productId: string, quantity: number) {
   const supabase = await createServiceClient();
   const { data: product } = await supabase
@@ -292,8 +327,11 @@ export async function checkProductAvailability(productId: string, quantity: numb
     return { available: false, reason: "Product not available" };
   }
 
-  // If inventory tracking is disabled, the product is always considered in stock
+  // When tracking is disabled, stock=1 means manually marked in-stock, stock=0 means out-of-stock
   if (!product.track_inventory) {
+    if (product.stock === 0) {
+      return { available: false, reason: "Out of stock" };
+    }
     return { available: true, availableQuantity: null };
   }
 
@@ -335,8 +373,13 @@ export async function bulkCheckInventory(items: Array<{ productId: string; quant
       continue;
     }
 
-    // Skip stock check for untracked products
-    if (!product.track_inventory) continue;
+    // For untracked products: stock=0 means manually marked out-of-stock
+    if (!product.track_inventory) {
+      if (product.stock === 0) {
+        issues.push({ productId: item.productId, issue: "Out of stock" });
+      }
+      continue;
+    }
 
     if (product.stock < item.quantity) {
       issues.push({
