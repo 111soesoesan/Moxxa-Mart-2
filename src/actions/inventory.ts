@@ -34,7 +34,12 @@ export type InventoryLog = {
   notes: string | null;
   created_by: string | null;
   created_at: string;
+  // joined
+  productName?: string | null;
+  productId?: string | null;
 };
+
+// ─── Read helpers ─────────────────────────────────────────────────────────────
 
 export async function getProductInventory(productId: string) {
   const supabase = await createClient();
@@ -68,6 +73,47 @@ export async function getShopInventory(shopId: string) {
   return data ?? [];
 }
 
+export async function getShopAdjustmentLogs(shopId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data: shop } = await supabase
+    .from("shops")
+    .select("owner_id")
+    .eq("id", shopId)
+    .single();
+
+  if (!shop || shop.owner_id !== user.id) return [];
+
+  const { data: inventories } = await supabase
+    .from("inventory")
+    .select("id, product_id, products(id, name)")
+    .eq("shop_id", shopId);
+
+  if (!inventories || inventories.length === 0) return [];
+
+  const inventoryIds = inventories.map((i) => i.id);
+
+  const { data: logs } = await supabase
+    .from("inventory_logs")
+    .select("*")
+    .in("inventory_id", inventoryIds)
+    .order("created_at", { ascending: false });
+
+  if (!logs) return [];
+
+  return logs.map((log) => {
+    const inv = inventories.find((i) => i.id === log.inventory_id);
+    const prod = inv?.products as { id: string; name: string } | null;
+    return {
+      ...log,
+      productName: prod?.name ?? null,
+      productId: inv?.product_id ?? null,
+    } as InventoryLog;
+  });
+}
+
 export async function getLowStockProducts(shopId: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -87,7 +133,6 @@ export async function getLowStockProducts(shopId: string) {
     .eq("shop_id", shopId)
     .order("stock_quantity", { ascending: true });
 
-  // Only flag items where tracking is enabled and quantity is at/below threshold
   return (data ?? []).filter(
     (item) =>
       item.products?.track_inventory !== false &&
@@ -95,106 +140,42 @@ export async function getLowStockProducts(shopId: string) {
   );
 }
 
-export async function toggleInventoryTracking(productId: string, track: boolean) {
+export async function getInventoryStats(shopId: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated" };
+  if (!user) return null;
 
-  // Verify ownership via the product → shop relationship
-  const { data: product } = await supabase
-    .from("products")
-    .select("shop_id, shops(owner_id, slug)")
-    .eq("id", productId)
-    .single();
-
-  if (!product) return { error: "Product not found" };
-  const shop = product.shops as { owner_id: string; slug: string } | null;
-  if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
-
-  const { error } = await supabase
-    .from("products")
-    .update({ track_inventory: track })
-    .eq("id", productId);
-
-  if (error) return { error: error.message };
-
-  revalidatePath(`/vendor/${shop.slug}/inventory`);
-  revalidatePath(`/vendor/${shop.slug}/products`);
-  return { success: true };
-}
-
-export async function updateInventoryManual(
-  productId: string,
-  newQuantity: number,
-  reason: string,
-  notes?: string
-) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated" };
-
-  // Look up the inventory record by product_id to get the inventory UUID
-  const { data: inventory } = await supabase
-    .from("inventory")
-    .select("id, stock_quantity, shop_id")
-    .eq("product_id", productId)
-    .single();
-
-  if (!inventory) return { error: "Inventory record not found" };
-
-  // Verify ownership
   const { data: shop } = await supabase
     .from("shops")
     .select("owner_id")
-    .eq("id", inventory.shop_id)
+    .eq("id", shopId)
     .single();
 
-  if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
+  if (!shop || shop.owner_id !== user.id) return null;
 
-  const previousQuantity = inventory.stock_quantity;
-  const quantityChange = newQuantity - previousQuantity;
-
-  // Map UI reason to valid change_type enum
-  let changeType: string;
-  if (reason === "restock" || quantityChange > 0) {
-    changeType = "restock";
-  } else if (reason === "return") {
-    changeType = "return";
-  } else {
-    changeType = "manual_update";
-  }
-
-  // Update the inventory table
-  const { error: updateError } = await supabase
+  const { data: inventories } = await supabase
     .from("inventory")
-    .update({ stock_quantity: newQuantity })
-    .eq("id", inventory.id);
+    .select("stock_quantity, low_stock_threshold, products(track_inventory)")
+    .eq("shop_id", shopId);
 
-  if (updateError) return { error: updateError.message };
+  if (!inventories) return null;
 
-  // Keep products.stock in sync for the existing checkout availability flow
-  await supabase
-    .from("products")
-    .update({ stock: newQuantity })
-    .eq("id", productId);
+  const tracked = inventories.filter(
+    (inv) => (inv.products as { track_inventory: boolean } | null)?.track_inventory !== false
+  );
 
-  // Log the change — use the inventory UUID, not the product UUID
-  const { error: logError } = await supabase
-    .from("inventory_logs")
-    .insert({
-      inventory_id: inventory.id,
-      change_type: changeType,
-      quantity_change: quantityChange,
-      previous_quantity: previousQuantity,
-      new_quantity: newQuantity,
-      notes: notes ? `${reason}: ${notes}` : reason || null,
-      created_by: user.id,
-    });
+  const totalProducts = tracked.length;
+  const totalStock = tracked.reduce((sum, inv) => sum + Math.max(0, inv.stock_quantity), 0);
+  const lowStockCount = tracked.filter(
+    (inv) => inv.stock_quantity <= inv.low_stock_threshold
+  ).length;
 
-  if (logError) return { error: logError.message };
-
-  revalidatePath(`/vendor`);
-  return { success: true };
+  return {
+    totalProducts,
+    totalStock,
+    lowStockCount,
+    averageStock: totalProducts > 0 ? totalStock / totalProducts : 0,
+  };
 }
 
 export async function getInventoryLogs(
@@ -215,7 +196,6 @@ export async function getInventoryLogs(
 
   if (!shop || shop.owner_id !== user.id) return [];
 
-  // inventory_logs has no shop_id/product_id — join through inventory
   let inventoryQuery = supabase
     .from("inventory")
     .select("id")
@@ -240,44 +220,158 @@ export async function getInventoryLogs(
   return data ?? [];
 }
 
-export async function getInventoryStats(shopId: string) {
+// ─── Adjustments ──────────────────────────────────────────────────────────────
+
+const REASON_TO_CHANGE_TYPE: Record<string, string> = {
+  restock: "restock",
+  customer_return: "return",
+  damaged: "manual_update",
+  shrinkage: "manual_update",
+  correction: "manual_update",
+  other: "manual_update",
+};
+
+export async function createAdjustment(
+  productId: string,
+  quantityChange: number,
+  reason: string,
+  notes?: string
+) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: product } = await supabase
+    .from("products")
+    .select("shop_id, shops(owner_id, slug)")
+    .eq("id", productId)
+    .single();
+
+  if (!product) return { error: "Product not found" };
+  const shop = product.shops as { owner_id: string; slug: string } | null;
+  if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
+
+  const { data: inventory } = await supabase
+    .from("inventory")
+    .select("id, stock_quantity")
+    .eq("product_id", productId)
+    .single();
+
+  if (!inventory) return { error: "Inventory record not found" };
+
+  const previousQty = inventory.stock_quantity;
+  // Allow going to 0 but clamp at 0 (no negative stock in DB)
+  const newQty = Math.max(0, previousQty + quantityChange);
+
+  const { error: invErr } = await supabase
+    .from("inventory")
+    .update({ stock_quantity: newQty })
+    .eq("id", inventory.id);
+  if (invErr) return { error: invErr.message };
+
+  await supabase.from("products").update({ stock: newQty }).eq("id", productId);
+
+  const changeType = REASON_TO_CHANGE_TYPE[reason] ?? "manual_update";
+  const logNotes = reason === "other" ? (notes ?? "Other") : [
+    reason,
+    notes,
+  ].filter(Boolean).join(": ");
+
+  const { error: logErr } = await supabase.from("inventory_logs").insert({
+    inventory_id: inventory.id,
+    change_type: changeType,
+    quantity_change: quantityChange,
+    previous_quantity: previousQty,
+    new_quantity: newQty,
+    notes: logNotes || null,
+    created_by: user.id,
+  });
+  if (logErr) return { error: logErr.message };
+
+  revalidatePath(`/vendor/${shop.slug}/inventory`);
+  return { success: true, newQty };
+}
+
+export async function deleteAdjustment(logId: string, shopId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
 
   const { data: shop } = await supabase
     .from("shops")
-    .select("owner_id")
+    .select("owner_id, slug")
     .eq("id", shopId)
     .single();
 
-  if (!shop || shop.owner_id !== user.id) return null;
+  if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
 
-  // Join with products so we can filter by track_inventory
-  const { data: inventories } = await supabase
+  const { data: log } = await supabase
+    .from("inventory_logs")
+    .select("*")
+    .eq("id", logId)
+    .single();
+
+  if (!log) return { error: "Log entry not found" };
+
+  // Restore the previous stock snapshot
+  const restoreQty = log.previous_quantity ?? 0;
+
+  const { data: inventory } = await supabase
     .from("inventory")
-    .select("stock_quantity, low_stock_threshold, products(track_inventory)")
-    .eq("shop_id", shopId);
+    .select("id, product_id")
+    .eq("id", log.inventory_id)
+    .single();
 
-  if (!inventories) return null;
+  if (!inventory) return { error: "Inventory record not found" };
 
-  // Only count tracked products
-  const tracked = inventories.filter(
-    (inv) => (inv.products as { track_inventory: boolean } | null)?.track_inventory !== false
-  );
+  await supabase
+    .from("inventory")
+    .update({ stock_quantity: restoreQty })
+    .eq("id", inventory.id);
 
-  const totalProducts = tracked.length;
-  const totalStock = tracked.reduce((sum, inv) => sum + inv.stock_quantity, 0);
-  const lowStockCount = tracked.filter(
-    (inv) => inv.stock_quantity <= inv.low_stock_threshold
-  ).length;
+  await supabase
+    .from("products")
+    .update({ stock: restoreQty })
+    .eq("id", inventory.product_id);
 
-  return {
-    totalProducts,
-    totalStock,
-    lowStockCount,
-    averageStock: totalProducts > 0 ? totalStock / totalProducts : 0,
-  };
+  const { error: delErr } = await supabase
+    .from("inventory_logs")
+    .delete()
+    .eq("id", logId);
+
+  if (delErr) return { error: delErr.message };
+
+  revalidatePath(`/vendor/${shop.slug}/inventory`);
+  return { success: true };
+}
+
+// ─── Stock tracking toggle ────────────────────────────────────────────────────
+
+export async function toggleInventoryTracking(productId: string, track: boolean) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: product } = await supabase
+    .from("products")
+    .select("shop_id, shops(owner_id, slug)")
+    .eq("id", productId)
+    .single();
+
+  if (!product) return { error: "Product not found" };
+  const shop = product.shops as { owner_id: string; slug: string } | null;
+  if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
+
+  const { error } = await supabase
+    .from("products")
+    .update({ track_inventory: track })
+    .eq("id", productId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/vendor/${shop.slug}/inventory`);
+  revalidatePath(`/vendor/${shop.slug}/products`);
+  return { success: true };
 }
 
 export async function setManualStockStatus(productId: string, inStock: boolean) {
@@ -297,23 +391,85 @@ export async function setManualStockStatus(productId: string, inStock: boolean) 
 
   const qty = inStock ? 1 : 0;
 
-  // Update products.stock for the checkout availability check
   const { error: prodErr } = await supabase
     .from("products")
     .update({ stock: qty })
     .eq("id", productId);
   if (prodErr) return { error: prodErr.message };
 
-  // Keep inventory.stock_quantity in sync so the page reflects the status
-  const { error: invErr } = await supabase
+  await supabase
     .from("inventory")
     .update({ stock_quantity: qty })
     .eq("product_id", productId);
-  if (invErr) return { error: invErr.message };
 
   revalidatePath(`/vendor/${shop.slug}/inventory`);
   return { success: true };
 }
+
+// ─── Manual inventory update (absolute set) ───────────────────────────────────
+
+export async function updateInventoryManual(
+  productId: string,
+  newQuantity: number,
+  reason: string,
+  notes?: string
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: inventory } = await supabase
+    .from("inventory")
+    .select("id, stock_quantity, shop_id")
+    .eq("product_id", productId)
+    .single();
+
+  if (!inventory) return { error: "Inventory record not found" };
+
+  const { data: shop } = await supabase
+    .from("shops")
+    .select("owner_id")
+    .eq("id", inventory.shop_id)
+    .single();
+
+  if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
+
+  const previousQuantity = inventory.stock_quantity;
+  const quantityChange = newQuantity - previousQuantity;
+
+  let changeType: string;
+  if (reason === "restock" || quantityChange > 0) {
+    changeType = "restock";
+  } else if (reason === "return") {
+    changeType = "return";
+  } else {
+    changeType = "manual_update";
+  }
+
+  const { error: updateError } = await supabase
+    .from("inventory")
+    .update({ stock_quantity: newQuantity })
+    .eq("id", inventory.id);
+
+  if (updateError) return { error: updateError.message };
+
+  await supabase.from("products").update({ stock: newQuantity }).eq("id", productId);
+
+  await supabase.from("inventory_logs").insert({
+    inventory_id: inventory.id,
+    change_type: changeType,
+    quantity_change: quantityChange,
+    previous_quantity: previousQuantity,
+    new_quantity: newQuantity,
+    notes: notes ? `${reason}: ${notes}` : reason || null,
+    created_by: user.id,
+  });
+
+  revalidatePath(`/vendor`);
+  return { success: true };
+}
+
+// ─── Availability checks ──────────────────────────────────────────────────────
 
 export async function checkProductAvailability(productId: string, quantity: number) {
   const supabase = await createServiceClient();
@@ -327,15 +483,15 @@ export async function checkProductAvailability(productId: string, quantity: numb
     return { available: false, reason: "Product not available" };
   }
 
-  // When tracking is disabled, stock=1 means manually marked in-stock, stock=0 means out-of-stock
+  // When tracking is disabled: no quantity limit; manual in/out status via stock field
   if (!product.track_inventory) {
-    if (product.stock === 0) {
+    if (product.stock <= 0) {
       return { available: false, reason: "Out of stock" };
     }
     return { available: true, availableQuantity: null };
   }
 
-  if (product.stock === 0) {
+  if (product.stock <= 0) {
     return { available: false, reason: "Out of stock" };
   }
 
@@ -373,9 +529,9 @@ export async function bulkCheckInventory(items: Array<{ productId: string; quant
       continue;
     }
 
-    // For untracked products: stock=0 means manually marked out-of-stock
+    // Untracked: no quantity limit, but respect manual in/out status
     if (!product.track_inventory) {
-      if (product.stock === 0) {
+      if (product.stock <= 0) {
         issues.push({ productId: item.productId, issue: "Out of stock" });
       }
       continue;
