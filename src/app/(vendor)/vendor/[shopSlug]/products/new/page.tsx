@@ -30,6 +30,7 @@ const schema = z.object({
   stock: z.number().int("Stock must be a whole number").min(0, "Stock must be 0 or more"),
   category: z.string().optional(),
   condition: z.string().min(1, "Condition is required"),
+  track_inventory: z.boolean(),
   list_on_marketplace: z.boolean(),
   payment_method_ids: z.array(z.string()).min(1, "Select at least one payment method"),
 });
@@ -61,6 +62,7 @@ export default function NewProductPage() {
       stock: 0,
       category: "",
       condition: "new",
+      track_inventory: true,
       list_on_marketplace: true,
       payment_method_ids: [],
     },
@@ -111,6 +113,7 @@ export default function NewProductPage() {
         category: values.category || undefined,
         condition: values.condition,
         image_urls: imageUrls,
+        track_inventory: values.track_inventory,
         list_on_marketplace: values.list_on_marketplace,
         is_active: true,
         payment_method_ids: values.payment_method_ids,
@@ -301,8 +304,23 @@ export default function NewProductPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Publishing</CardTitle></CardHeader>
-          <CardContent>
+          <CardHeader><CardTitle className="text-base">Inventory &amp; Publishing</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-sm">Track Inventory</p>
+                <p className="text-xs text-muted-foreground">
+                  Count stock and warn when low. Turn off for always-in-stock items (e.g. digital goods, services).
+                </p>
+              </div>
+              <Controller
+                control={form.control}
+                name="track_inventory"
+                render={({ field }) => (
+                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                )}
+              />
+            </div>
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium text-sm">List on Global Marketplace</p>

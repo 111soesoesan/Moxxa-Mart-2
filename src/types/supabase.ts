@@ -559,6 +559,7 @@ export type Database = {
           shop_id: string
           slug: string
           stock: number
+          track_inventory: boolean
           updated_at: string
           variants: Json
         }
@@ -578,6 +579,7 @@ export type Database = {
           shop_id: string
           slug: string
           stock?: number
+          track_inventory?: boolean
           updated_at?: string
           variants?: Json
         }
@@ -597,6 +599,7 @@ export type Database = {
           shop_id?: string
           slug?: string
           stock?: number
+          track_inventory?: boolean
           updated_at?: string
           variants?: Json
         }

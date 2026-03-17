@@ -32,6 +32,7 @@ const schema = z.object({
   stock: z.number().int("Stock must be a whole number").min(0, "Stock must be 0 or more"),
   category: z.string().optional(),
   condition: z.string().min(1, "Condition is required"),
+  track_inventory: z.boolean(),
   list_on_marketplace: z.boolean(),
   is_active: z.boolean(),
   payment_method_ids: z.array(z.string()).min(1, "Select at least one payment method"),
@@ -64,6 +65,7 @@ export default function EditProductPage() {
       stock: 0,
       category: "",
       condition: "new",
+      track_inventory: true,
       list_on_marketplace: true,
       is_active: true,
       payment_method_ids: [],
@@ -100,6 +102,7 @@ export default function EditProductPage() {
         stock: product.stock,
         category: (product as { category?: string | null }).category ?? "",
         condition: product.condition ?? "new",
+        track_inventory: (product as { track_inventory?: boolean }).track_inventory ?? true,
         list_on_marketplace: product.list_on_marketplace ?? true,
         is_active: product.is_active ?? true,
         payment_method_ids: (product as { payment_method_ids?: string[] }).payment_method_ids ?? [],
@@ -122,6 +125,7 @@ export default function EditProductPage() {
         category: values.category || undefined,
         condition: values.condition,
         image_urls: imageUrls,
+        track_inventory: values.track_inventory,
         list_on_marketplace: values.list_on_marketplace,
         is_active: values.is_active,
         payment_method_ids: values.payment_method_ids,
@@ -347,8 +351,23 @@ export default function EditProductPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Publishing</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Inventory &amp; Publishing</CardTitle></CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-sm">Track Inventory</p>
+                <p className="text-xs text-muted-foreground">
+                  Count stock and warn when low. Turn off for always-in-stock items (e.g. digital goods, services).
+                </p>
+              </div>
+              <Controller
+                control={form.control}
+                name="track_inventory"
+                render={({ field }) => (
+                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                )}
+              />
+            </div>
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium text-sm">List on Global Marketplace</p>

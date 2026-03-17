@@ -19,6 +19,7 @@ export type InventoryItem = {
     name: string;
     price: number;
     image_urls: string[] | null;
+    track_inventory: boolean;
   } | null;
 };
 
@@ -60,7 +61,7 @@ export async function getShopInventory(shopId: string) {
 
   const { data } = await supabase
     .from("inventory")
-    .select("*, products(id, name, price, image_urls)")
+    .select("*, products(id, name, price, image_urls, track_inventory)")
     .eq("shop_id", shopId)
     .order("created_at", { ascending: false });
 
@@ -82,14 +83,44 @@ export async function getLowStockProducts(shopId: string) {
 
   const { data } = await supabase
     .from("inventory")
-    .select("*, products(id, name, price, image_urls)")
+    .select("*, products(id, name, price, image_urls, track_inventory)")
     .eq("shop_id", shopId)
     .order("stock_quantity", { ascending: true });
 
-  // Supabase JS v2 doesn't support column-to-column comparisons — filter in JS
+  // Only flag items where tracking is enabled and quantity is at/below threshold
   return (data ?? []).filter(
-    (item) => item.stock_quantity <= item.low_stock_threshold
+    (item) =>
+      item.products?.track_inventory !== false &&
+      item.stock_quantity <= item.low_stock_threshold
   );
+}
+
+export async function toggleInventoryTracking(productId: string, track: boolean) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  // Verify ownership via the product → shop relationship
+  const { data: product } = await supabase
+    .from("products")
+    .select("shop_id, shops(owner_id, slug)")
+    .eq("id", productId)
+    .single();
+
+  if (!product) return { error: "Product not found" };
+  const shop = product.shops as { owner_id: string; slug: string } | null;
+  if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
+
+  const { error } = await supabase
+    .from("products")
+    .update({ track_inventory: track })
+    .eq("id", productId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/vendor/${shop.slug}/inventory`);
+  revalidatePath(`/vendor/${shop.slug}/products`);
+  return { success: true };
 }
 
 export async function updateInventoryManual(
@@ -123,7 +154,7 @@ export async function updateInventoryManual(
   const previousQuantity = inventory.stock_quantity;
   const quantityChange = newQuantity - previousQuantity;
 
-  // Map UI reason to valid change_type enum: sale, manual_update, restock, cancel, reservation, return
+  // Map UI reason to valid change_type enum
   let changeType: string;
   if (reason === "restock" || quantityChange > 0) {
     changeType = "restock";
@@ -222,16 +253,22 @@ export async function getInventoryStats(shopId: string) {
 
   if (!shop || shop.owner_id !== user.id) return null;
 
+  // Join with products so we can filter by track_inventory
   const { data: inventories } = await supabase
     .from("inventory")
-    .select("stock_quantity, low_stock_threshold")
+    .select("stock_quantity, low_stock_threshold, products(track_inventory)")
     .eq("shop_id", shopId);
 
   if (!inventories) return null;
 
-  const totalProducts = inventories.length;
-  const totalStock = inventories.reduce((sum, inv) => sum + inv.stock_quantity, 0);
-  const lowStockCount = inventories.filter(
+  // Only count tracked products
+  const tracked = inventories.filter(
+    (inv) => (inv.products as { track_inventory: boolean } | null)?.track_inventory !== false
+  );
+
+  const totalProducts = tracked.length;
+  const totalStock = tracked.reduce((sum, inv) => sum + inv.stock_quantity, 0);
+  const lowStockCount = tracked.filter(
     (inv) => inv.stock_quantity <= inv.low_stock_threshold
   ).length;
 
@@ -247,12 +284,17 @@ export async function checkProductAvailability(productId: string, quantity: numb
   const supabase = await createServiceClient();
   const { data: product } = await supabase
     .from("products")
-    .select("stock, is_active")
+    .select("stock, is_active, track_inventory")
     .eq("id", productId)
     .single();
 
   if (!product || !product.is_active) {
     return { available: false, reason: "Product not available" };
+  }
+
+  // If inventory tracking is disabled, the product is always considered in stock
+  if (!product.track_inventory) {
+    return { available: true, availableQuantity: null };
   }
 
   if (product.stock === 0) {
@@ -276,7 +318,7 @@ export async function bulkCheckInventory(items: Array<{ productId: string; quant
 
   const { data: products } = await supabase
     .from("products")
-    .select("id, stock, is_active")
+    .select("id, stock, is_active, track_inventory")
     .in("id", productIds);
 
   const issues: Array<{
@@ -292,6 +334,9 @@ export async function bulkCheckInventory(items: Array<{ productId: string; quant
       issues.push({ productId: item.productId, issue: "Product not available" });
       continue;
     }
+
+    // Skip stock check for untracked products
+    if (!product.track_inventory) continue;
 
     if (product.stock < item.quantity) {
       issues.push({

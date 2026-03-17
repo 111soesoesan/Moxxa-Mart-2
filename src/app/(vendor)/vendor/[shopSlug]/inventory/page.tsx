@@ -6,6 +6,7 @@ import {
   getLowStockProducts,
   getInventoryStats,
   updateInventoryManual,
+  toggleInventoryTracking,
   type InventoryItem,
 } from "@/actions/inventory";
 import { getShopBySlug } from "@/actions/shops";
@@ -13,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -28,13 +30,13 @@ import { toast } from "sonner";
 type Props = { params: Promise<{ shopSlug: string }> };
 
 export default function InventoryPage({ params: paramsPromise }: Props) {
-  const [shopSlug, setShopSlug] = useState<string>("");
   const [shopId, setShopId] = useState<string>("");
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [lowStockItems, setLowStockItems] = useState<InventoryItem[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
   const [newQty, setNewQty] = useState("");
@@ -57,7 +59,6 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
     async function init() {
       try {
         const resolvedParams = await paramsPromise;
-        setShopSlug(resolvedParams.shopSlug);
         const shop = await getShopBySlug(resolvedParams.shopSlug);
         if (!shop) return;
         setShopId(shop.id);
@@ -102,6 +103,32 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
     }
   };
 
+  const handleToggleTracking = async (item: InventoryItem, track: boolean) => {
+    setTogglingId(item.product_id);
+    const result = await toggleInventoryTracking(item.product_id, track);
+    setTogglingId(null);
+    if (result?.error) {
+      toast.error(result.error);
+    } else {
+      toast.success(track ? "Inventory tracking enabled" : "Inventory tracking disabled");
+      // Optimistically update local state
+      setInventoryItems((prev) =>
+        prev.map((i) =>
+          i.product_id === item.product_id
+            ? { ...i, products: i.products ? { ...i.products, track_inventory: track } : i.products }
+            : i
+        )
+      );
+      // Refresh stats (low stock count changes)
+      const [lowStock, inventoryStats] = await Promise.all([
+        getLowStockProducts(shopId),
+        getInventoryStats(shopId),
+      ]);
+      setLowStockItems(lowStock as InventoryItem[]);
+      setStats(inventoryStats);
+    }
+  };
+
   const filteredItems = inventoryItems.filter(
     (item) =>
       item.products?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -122,15 +149,15 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Stats Cards */}
+      {/* Stats Cards — only tracked products */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Products</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Tracked Products</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.totalProducts ?? 0}</div>
-            <p className="text-xs text-muted-foreground mt-1">Items in inventory</p>
+            <p className="text-xs text-muted-foreground mt-1">Inventory-tracked items</p>
           </CardContent>
         </Card>
 
@@ -163,7 +190,7 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{Math.round(stats?.averageStock ?? 0)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Per product</p>
+            <p className="text-xs text-muted-foreground mt-1">Per tracked product</p>
           </CardContent>
         </Card>
       </div>
@@ -225,6 +252,7 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
                   <tr className="border-b">
                     <th className="text-left py-3 px-4 font-medium">Product</th>
                     <th className="text-left py-3 px-4 font-medium">Price</th>
+                    <th className="text-center py-3 px-4 font-medium">Track</th>
                     <th className="text-center py-3 px-4 font-medium">Stock</th>
                     <th className="text-center py-3 px-4 font-medium">Reserved</th>
                     <th className="text-center py-3 px-4 font-medium">Available</th>
@@ -234,8 +262,11 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
                 </thead>
                 <tbody>
                   {filteredItems.map((item) => {
-                    const isLow = item.stock_quantity <= item.low_stock_threshold;
-                    const isOut = item.stock_quantity === 0;
+                    const isTracked = item.products?.track_inventory !== false;
+                    const isLow = isTracked && item.stock_quantity <= item.low_stock_threshold;
+                    const isOut = isTracked && item.stock_quantity === 0;
+                    const isToggling = togglingId === item.product_id;
+
                     return (
                       <tr key={item.product_id} className="border-b hover:bg-muted/50">
                         <td className="py-3 px-4">
@@ -255,16 +286,38 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
                             </div>
                           </div>
                         </td>
+
                         <td className="py-3 px-4">
                           {item.products?.price != null ? formatCurrency(item.products.price) : "—"}
                         </td>
-                        <td className="py-3 px-4 text-center font-medium">{item.stock_quantity}</td>
-                        <td className="py-3 px-4 text-center">{item.reserved_quantity ?? 0}</td>
+
+                        {/* Tracking toggle */}
+                        <td className="py-3 px-4 text-center">
+                          <Switch
+                            checked={isTracked}
+                            onCheckedChange={(checked) => handleToggleTracking(item, checked)}
+                            disabled={isToggling}
+                            aria-label="Track inventory"
+                          />
+                        </td>
+
                         <td className="py-3 px-4 text-center font-medium">
-                          {(item.stock_quantity ?? 0) - (item.reserved_quantity ?? 0)}
+                          {isTracked ? item.stock_quantity : "—"}
                         </td>
                         <td className="py-3 px-4 text-center">
-                          {isOut ? (
+                          {isTracked ? (item.reserved_quantity ?? 0) : "—"}
+                        </td>
+                        <td className="py-3 px-4 text-center font-medium">
+                          {isTracked
+                            ? (item.stock_quantity ?? 0) - (item.reserved_quantity ?? 0)
+                            : "—"}
+                        </td>
+
+                        {/* Status badge */}
+                        <td className="py-3 px-4 text-center">
+                          {!isTracked ? (
+                            <Badge variant="secondary" className="text-xs">Not Tracked</Badge>
+                          ) : isOut ? (
                             <Badge variant="secondary" className="text-xs">Out of Stock</Badge>
                           ) : isLow ? (
                             <Badge variant="destructive" className="text-xs">Low Stock</Badge>
@@ -272,8 +325,15 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
                             <Badge variant="outline" className="text-xs">In Stock</Badge>
                           )}
                         </td>
+
+                        {/* Adjust button — only when tracking is on */}
                         <td className="py-3 px-4 text-right">
-                          <Button variant="ghost" size="sm" onClick={() => openAdjust(item)}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openAdjust(item)}
+                            disabled={!isTracked}
+                          >
                             Adjust
                           </Button>
                         </td>
@@ -294,11 +354,9 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
             <DialogTitle>Adjust Inventory — {adjustItem?.products?.name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">
-                Current stock: <span className="font-semibold">{adjustItem?.stock_quantity}</span>
-              </p>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              Current stock: <span className="font-semibold text-foreground">{adjustItem?.stock_quantity}</span>
+            </p>
             <div className="space-y-1">
               <label className="text-sm font-medium">New Quantity</label>
               <Input
