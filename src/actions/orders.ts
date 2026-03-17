@@ -71,11 +71,16 @@ export async function createOrder(payload: CreateOrderPayload) {
 
   // Log customer activity
   if (customerId) {
-    await addCustomerActivity(customerId, "order_placed", {
-      orderId: order.id,
-      total,
-      itemsCount: payload.items.length,
-    });
+    await addCustomerActivity(
+      customerId,
+      "order_placed",
+      `Order placed`,
+      {
+        orderId: order.id,
+        total,
+        itemsCount: payload.items.length,
+      }
+    );
   }
 
   return { data: order };
