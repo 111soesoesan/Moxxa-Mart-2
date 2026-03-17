@@ -22,7 +22,8 @@ export type CustomerActivity = {
   id: string;
   customer_id: string;
   activity_type: string;
-  activity_data: Record<string, any>;
+  description: string | null;
+  metadata: Record<string, any> | null;
   created_at: string;
 };
 
@@ -30,7 +31,7 @@ export async function getShopCustomers(
   shopId: string,
   options?: {
     search?: string;
-    sortBy?: "name" | "last_order" | "total_spent";
+    sortBy?: "name" | "last_order_at" | "total_spent";
     sortOrder?: "asc" | "desc";
     limit?: number;
     offset?: number;
@@ -57,12 +58,10 @@ export async function getShopCustomers(
     req = req.or(`email.ilike.%${options.search}%,name.ilike.%${options.search}%`);
   }
 
-  // Apply sorting
   const sortBy = options?.sortBy || "last_order_at";
-  const sortOrder = options?.sortOrder === "asc" ? true : false;
-  req = req.order(sortBy, { ascending: sortOrder });
+  const ascending = options?.sortOrder === "asc";
+  req = req.order(sortBy, { ascending });
 
-  // Apply pagination
   const limit = options?.limit || 20;
   const offset = options?.offset || 0;
   req = req.range(offset, offset + limit - 1);
@@ -84,7 +83,6 @@ export async function getCustomerById(customerId: string) {
 
   if (!customer) return null;
 
-  // Verify ownership
   const { data: shop } = await supabase
     .from("shops")
     .select("owner_id")
@@ -108,7 +106,6 @@ export async function getCustomerActivity(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
-  // Verify ownership
   const { data: customer } = await supabase
     .from("customers")
     .select("shop_id")
@@ -146,7 +143,8 @@ export async function getCustomerActivity(
 export async function addCustomerActivity(
   customerId: string,
   activityType: string,
-  activityData: Record<string, any>
+  description: string,
+  metadata?: Record<string, any>
 ) {
   const supabase = await createServiceClient();
   const { error } = await supabase
@@ -154,7 +152,8 @@ export async function addCustomerActivity(
     .insert({
       customer_id: customerId,
       activity_type: activityType,
-      activity_data: activityData,
+      description,
+      metadata: metadata ?? null,
     });
 
   if (error) return { error: error.message };
@@ -173,7 +172,6 @@ export async function updateCustomerInfo(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
-  // Verify ownership
   const { data: customer } = await supabase
     .from("customers")
     .select("shop_id")
@@ -291,7 +289,6 @@ export async function getOrCreateCustomer(
 ) {
   const supabase = await createServiceClient();
 
-  // Check if customer already exists
   const { data: existing } = await supabase
     .from("customers")
     .select("*")
@@ -303,7 +300,6 @@ export async function getOrCreateCustomer(
     return { data: existing, isNew: false };
   }
 
-  // Create new customer
   const { data: newCustomer, error } = await supabase
     .from("customers")
     .insert({

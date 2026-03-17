@@ -3,17 +3,36 @@
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 
-export type InventoryLog = {
+export type InventoryItem = {
   id: string;
   product_id: string;
   shop_id: string;
+  stock_quantity: number;
+  reserved_quantity: number;
+  low_stock_threshold: number;
+  sku: string | null;
+  last_updated_at: string;
+  created_at: string;
+  updated_at: string;
+  products?: {
+    id: string;
+    name: string;
+    price: number;
+    image_urls: string[] | null;
+  } | null;
+};
+
+export type InventoryLog = {
+  id: string;
+  inventory_id: string;
   change_type: string;
   quantity_change: number;
-  before_quantity: number;
-  after_quantity: number;
-  metadata: Record<string, any> | null;
-  created_at: string;
+  previous_quantity: number | null;
+  new_quantity: number | null;
+  reference_id: string | null;
+  notes: string | null;
   created_by: string | null;
+  created_at: string;
 };
 
 export async function getProductInventory(productId: string) {
@@ -65,10 +84,12 @@ export async function getLowStockProducts(shopId: string) {
     .from("inventory")
     .select("*, products(id, name, price, image_urls)")
     .eq("shop_id", shopId)
-    .filter("stock_quantity", "lte", `low_stock_threshold`)
     .order("stock_quantity", { ascending: true });
 
-  return data ?? [];
+  // Supabase JS v2 doesn't support column-to-column comparisons — filter in JS
+  return (data ?? []).filter(
+    (item) => item.stock_quantity <= item.low_stock_threshold
+  );
 }
 
 export async function updateInventoryManual(
@@ -81,43 +102,61 @@ export async function updateInventoryManual(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
-  // Get current inventory
-  const { data: product } = await supabase
-    .from("products")
-    .select("shop_id, stock")
-    .eq("id", productId)
+  // Look up the inventory record by product_id to get the inventory UUID
+  const { data: inventory } = await supabase
+    .from("inventory")
+    .select("id, stock_quantity, shop_id")
+    .eq("product_id", productId)
     .single();
 
-  if (!product) return { error: "Product not found" };
+  if (!inventory) return { error: "Inventory record not found" };
 
+  // Verify ownership
   const { data: shop } = await supabase
     .from("shops")
     .select("owner_id")
-    .eq("id", product.shop_id)
+    .eq("id", inventory.shop_id)
     .single();
 
   if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
 
-  const quantityChange = newQuantity - product.stock;
+  const previousQuantity = inventory.stock_quantity;
+  const quantityChange = newQuantity - previousQuantity;
 
-  // Update product stock
+  // Map UI reason to valid change_type enum: sale, manual_update, restock, cancel, reservation, return
+  let changeType: string;
+  if (reason === "restock" || quantityChange > 0) {
+    changeType = "restock";
+  } else if (reason === "return") {
+    changeType = "return";
+  } else {
+    changeType = "manual_update";
+  }
+
+  // Update the inventory table
   const { error: updateError } = await supabase
+    .from("inventory")
+    .update({ stock_quantity: newQuantity })
+    .eq("id", inventory.id);
+
+  if (updateError) return { error: updateError.message };
+
+  // Keep products.stock in sync for the existing checkout availability flow
+  await supabase
     .from("products")
     .update({ stock: newQuantity })
     .eq("id", productId);
 
-  if (updateError) return { error: updateError.message };
-
-  // Log the change
+  // Log the change — use the inventory UUID, not the product UUID
   const { error: logError } = await supabase
     .from("inventory_logs")
     .insert({
-      inventory_id: productId, // Using product_id as inventory_id
-      change_type: "manual_adjustment",
+      inventory_id: inventory.id,
+      change_type: changeType,
       quantity_change: quantityChange,
-      previous_quantity: product.stock,
+      previous_quantity: previousQuantity,
       new_quantity: newQuantity,
-      notes: reason ? `${reason}: ${notes || ""}` : notes || null,
+      notes: notes ? `${reason}: ${notes}` : reason || null,
       created_by: user.id,
     });
 
@@ -145,18 +184,28 @@ export async function getInventoryLogs(
 
   if (!shop || shop.owner_id !== user.id) return [];
 
-  let req = supabase
+  // inventory_logs has no shop_id/product_id — join through inventory
+  let inventoryQuery = supabase
+    .from("inventory")
+    .select("id")
+    .eq("shop_id", shopId);
+
+  if (productId) {
+    inventoryQuery = inventoryQuery.eq("product_id", productId);
+  }
+
+  const { data: inventories } = await inventoryQuery;
+  if (!inventories || inventories.length === 0) return [];
+
+  const inventoryIds = inventories.map((i) => i.id);
+
+  const { data } = await supabase
     .from("inventory_logs")
     .select("*")
-    .eq("shop_id", shopId)
+    .in("inventory_id", inventoryIds)
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
-  if (productId) {
-    req = req.eq("product_id", productId);
-  }
-
-  const { data } = await req;
   return data ?? [];
 }
 
@@ -173,7 +222,6 @@ export async function getInventoryStats(shopId: string) {
 
   if (!shop || shop.owner_id !== user.id) return null;
 
-  // Get inventory stats
   const { data: inventories } = await supabase
     .from("inventory")
     .select("stock_quantity, low_stock_threshold")
@@ -225,7 +273,7 @@ export async function checkProductAvailability(productId: string, quantity: numb
 export async function bulkCheckInventory(items: Array<{ productId: string; quantity: number }>) {
   const supabase = await createServiceClient();
   const productIds = items.map((i) => i.productId);
-  
+
   const { data: products } = await supabase
     .from("products")
     .select("id, stock, is_active")
@@ -239,7 +287,7 @@ export async function bulkCheckInventory(items: Array<{ productId: string; quant
 
   for (const item of items) {
     const product = products?.find((p) => p.id === item.productId);
-    
+
     if (!product || !product.is_active) {
       issues.push({ productId: item.productId, issue: "Product not available" });
       continue;
@@ -248,7 +296,7 @@ export async function bulkCheckInventory(items: Array<{ productId: string; quant
     if (product.stock < item.quantity) {
       issues.push({
         productId: item.productId,
-        issue: `Insufficient stock`,
+        issue: "Insufficient stock",
         availableQuantity: product.stock,
       });
     }
