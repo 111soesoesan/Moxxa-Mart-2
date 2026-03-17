@@ -1,54 +1,111 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { getShopInventory, getLowStockProducts, getInventoryStats } from "@/actions/inventory";
+import { useState, useEffect, useCallback } from "react";
+import {
+  getShopInventory,
+  getLowStockProducts,
+  getInventoryStats,
+  updateInventoryManual,
+  type InventoryItem,
+} from "@/actions/inventory";
+import { getShopBySlug } from "@/actions/shops";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Package, TrendingDown, TrendingUp } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { AlertTriangle, Package } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
+import { formatCurrency } from "@/lib/utils";
+import { toast } from "sonner";
 
 type Props = { params: Promise<{ shopSlug: string }> };
 
 export default function InventoryPage({ params: paramsPromise }: Props) {
-  const [params, setParams] = useState<{ shopSlug: string }>();
-  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
-  const [lowStockItems, setLowStockItems] = useState<any[]>([]);
+  const [shopSlug, setShopSlug] = useState<string>("");
+  const [shopId, setShopId] = useState<string>("");
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [lowStockItems, setLowStockItems] = useState<InventoryItem[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
 
+  const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
+  const [newQty, setNewQty] = useState("");
+  const [adjustReason, setAdjustReason] = useState("restock");
+  const [adjustNotes, setAdjustNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const loadData = useCallback(async (id: string) => {
+    const [inventory, lowStock, inventoryStats] = await Promise.all([
+      getShopInventory(id),
+      getLowStockProducts(id),
+      getInventoryStats(id),
+    ]);
+    setInventoryItems(inventory as InventoryItem[]);
+    setLowStockItems(lowStock as InventoryItem[]);
+    setStats(inventoryStats);
+  }, []);
+
   useEffect(() => {
-    async function loadData() {
+    async function init() {
       try {
         const resolvedParams = await paramsPromise;
-        const shopId = resolvedParams.shopSlug;
-
-        const [inventory, lowStock, inventoryStats] = await Promise.all([
-          getShopInventory(shopId),
-          getLowStockProducts(shopId),
-          getInventoryStats(shopId),
-        ]);
-
-        setInventoryItems(inventory);
-        setLowStockItems(lowStock);
-        setStats(inventoryStats);
-      } catch (error) {
-        console.error("Failed to load inventory:", error);
+        setShopSlug(resolvedParams.shopSlug);
+        const shop = await getShopBySlug(resolvedParams.shopSlug);
+        if (!shop) return;
+        setShopId(shop.id);
+        await loadData(shop.id);
+      } catch (err) {
+        console.error("Failed to load inventory:", err);
       } finally {
         setLoading(false);
       }
     }
+    init();
+  }, [paramsPromise, loadData]);
 
-    loadData();
-  }, [paramsPromise]);
+  const openAdjust = (item: InventoryItem) => {
+    setAdjustItem(item);
+    setNewQty(String(item.stock_quantity));
+    setAdjustReason("restock");
+    setAdjustNotes("");
+  };
+
+  const handleSaveAdjustment = async () => {
+    if (!adjustItem) return;
+    const qty = parseInt(newQty, 10);
+    if (isNaN(qty) || qty < 0) {
+      toast.error("Enter a valid non-negative quantity");
+      return;
+    }
+    setSaving(true);
+    const result = await updateInventoryManual(
+      adjustItem.product_id,
+      qty,
+      adjustReason,
+      adjustNotes || undefined
+    );
+    setSaving(false);
+    if (result?.error) {
+      toast.error(result.error);
+    } else {
+      toast.success("Inventory updated");
+      setAdjustItem(null);
+      await loadData(shopId);
+    }
+  };
 
   const filteredItems = inventoryItems.filter(
     (item) =>
       item.products?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.product_id?.includes(searchQuery)
+      (item.sku ?? "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (loading) {
@@ -72,7 +129,7 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Products</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalProducts || 0}</div>
+            <div className="text-2xl font-bold">{stats?.totalProducts ?? 0}</div>
             <p className="text-xs text-muted-foreground mt-1">Items in inventory</p>
           </CardContent>
         </Card>
@@ -82,7 +139,7 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Stock</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalStock || 0}</div>
+            <div className="text-2xl font-bold">{stats?.totalStock ?? 0}</div>
             <p className="text-xs text-muted-foreground mt-1">Units available</p>
           </CardContent>
         </Card>
@@ -95,7 +152,7 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats?.lowStockCount || 0}</div>
+            <div className="text-2xl font-bold text-yellow-600">{stats?.lowStockCount ?? 0}</div>
             <p className="text-xs text-muted-foreground mt-1">Need restocking</p>
           </CardContent>
         </Card>
@@ -105,7 +162,7 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
             <CardTitle className="text-sm font-medium text-muted-foreground">Avg Stock</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{Math.round(stats?.averageStock || 0)}</div>
+            <div className="text-2xl font-bold">{Math.round(stats?.averageStock ?? 0)}</div>
             <p className="text-xs text-muted-foreground mt-1">Per product</p>
           </CardContent>
         </Card>
@@ -122,7 +179,7 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {lowStockItems.slice(0, 5).map((item: any) => (
+              {lowStockItems.slice(0, 5).map((item) => (
                 <div key={item.product_id} className="flex items-center justify-between p-2 bg-white rounded border border-yellow-100">
                   <span className="text-sm font-medium">{item.products?.name}</span>
                   <Badge variant="destructive" className="text-xs">
@@ -140,7 +197,7 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
         </Card>
       )}
 
-      {/* Search and Filter */}
+      {/* Search */}
       <div className="flex gap-2">
         <Input
           placeholder="Search by product name or SKU..."
@@ -148,7 +205,6 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="max-w-md"
         />
-        <Button variant="outline">Filter</Button>
       </div>
 
       {/* Inventory Table */}
@@ -177,53 +233,113 @@ export default function InventoryPage({ params: paramsPromise }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredItems.map((item: any) => (
-                    <tr key={item.product_id} className="border-b hover:bg-muted/50">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          {item.products?.image_urls?.[0] && (
-                            <Image
-                              src={item.products.image_urls[0]}
-                              alt={item.products.name}
-                              width={40}
-                              height={40}
-                              className="rounded"
-                            />
-                          )}
-                          <div>
-                            <p className="font-medium">{item.products?.name}</p>
-                            <p className="text-xs text-muted-foreground">{item.product_id}</p>
+                  {filteredItems.map((item) => {
+                    const isLow = item.stock_quantity <= item.low_stock_threshold;
+                    const isOut = item.stock_quantity === 0;
+                    return (
+                      <tr key={item.product_id} className="border-b hover:bg-muted/50">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-3">
+                            {item.products?.image_urls?.[0] && (
+                              <Image
+                                src={item.products.image_urls[0]}
+                                alt={item.products.name}
+                                width={40}
+                                height={40}
+                                className="rounded object-cover"
+                              />
+                            )}
+                            <div>
+                              <p className="font-medium">{item.products?.name}</p>
+                              <p className="text-xs text-muted-foreground">{item.sku ?? item.product_id}</p>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">${item.products?.price?.toFixed(2)}</td>
-                      <td className="py-3 px-4 text-center font-medium">{item.stock_quantity}</td>
-                      <td className="py-3 px-4 text-center">{item.reserved_quantity || 0}</td>
-                      <td className="py-3 px-4 text-center font-medium">
-                        {(item.stock_quantity || 0) - (item.reserved_quantity || 0)}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        {item.stock_quantity <= item.low_stock_threshold ? (
-                          <Badge variant="destructive" className="text-xs">Low Stock</Badge>
-                        ) : item.stock_quantity === 0 ? (
-                          <Badge variant="secondary" className="text-xs">Out of Stock</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-xs">In Stock</Badge>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <Link href={`/vendor/${params?.shopSlug}/inventory/${item.product_id}`}>
-                          <Button variant="ghost" size="sm">Edit</Button>
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="py-3 px-4">
+                          {item.products?.price != null ? formatCurrency(item.products.price) : "—"}
+                        </td>
+                        <td className="py-3 px-4 text-center font-medium">{item.stock_quantity}</td>
+                        <td className="py-3 px-4 text-center">{item.reserved_quantity ?? 0}</td>
+                        <td className="py-3 px-4 text-center font-medium">
+                          {(item.stock_quantity ?? 0) - (item.reserved_quantity ?? 0)}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {isOut ? (
+                            <Badge variant="secondary" className="text-xs">Out of Stock</Badge>
+                          ) : isLow ? (
+                            <Badge variant="destructive" className="text-xs">Low Stock</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">In Stock</Badge>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <Button variant="ghost" size="sm" onClick={() => openAdjust(item)}>
+                            Adjust
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Adjustment Dialog */}
+      <Dialog open={!!adjustItem} onOpenChange={(open) => { if (!open) setAdjustItem(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adjust Inventory — {adjustItem?.products?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">
+                Current stock: <span className="font-semibold">{adjustItem?.stock_quantity}</span>
+              </p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">New Quantity</label>
+              <Input
+                type="number"
+                min={0}
+                value={newQty}
+                onChange={(e) => setNewQty(e.target.value)}
+                placeholder="Enter new quantity"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Reason</label>
+              <select
+                value={adjustReason}
+                onChange={(e) => setAdjustReason(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md text-sm bg-background"
+              >
+                <option value="restock">Restock</option>
+                <option value="manual_update">Manual Correction</option>
+                <option value="return">Return</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Notes (optional)</label>
+              <Input
+                value={adjustNotes}
+                onChange={(e) => setAdjustNotes(e.target.value)}
+                placeholder="Add a note..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdjustItem(null)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveAdjustment} disabled={saving}>
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

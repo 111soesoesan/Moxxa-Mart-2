@@ -1,0 +1,38 @@
+Issues to Fix
+1. src/actions/inventory.ts
+InventoryLog type uses wrong fields (product_id, shop_id, before_quantity, after_quantity, metadata) - should be (inventory_id, previous_quantity, new_quantity, notes)
+
+getLowStockProducts: the filter .filter("stock_quantity", "lte", "low_stock_threshold") compares to literal string. Should fetch all and filter in JS (we already do this in getInventoryStats)
+
+updateInventoryManual is fundamentally broken—it's updating the wrong table and using invalid enum values. I need to fetch the inventory UUID by product ID, update both the inventory and products tables to keep them synced, then log the change with the correct inventory ID and a valid change type.
+
+getInventoryLogs has the same problem—it's filtering by fields that don't exist. I'll need to look up inventory records first, then query the logs by those IDs, with special handling for product-specific filters.
+
+In the customers file, the CustomerActivity type and its insert function are using the wrong field names—activity_data should be split into description and metadata. Also, there's a mismatch between the sort option name and the actual column name that needs reconciling.
+
+The inventory page is passing the slug directly as a shop ID when it should be resolving it to a UUID first, and the params state isn't being set so the edit link won't work. The price formatting needs to use the currency formatter, and the edit functionality should open a dialog inline instead of navigating to a missing page.
+
+The customers page has the same slug-to-ID resolution issue to fix.
+
+Looking at the customers list, I need to correct the field names: full_name should be name, last_order_date should be last_order_at, and the sort option needs to match the actual column names.
+
+The individual customer detail page has several field mapping issues to address: full_name and the order date fields need updating, is_subscribed doesn't exist in the schema, and I should verify what activity_data actually contains.
+
+Now I'm seeing there's a bigger gap with inventory — when products are created, there's no automatic inventory record being generated. I need to either add a database trigger or update the product creation logic to handle this. I also notice the RLS policies for inventory are missing an INSERT policy, which would block any inventory creation anyway. My plan is to create a migration that adds the missing INSERT policy and sets up auto-creation of inventory records, then backfill any existing products that don't have inventory entries yet.
+
+Starting with the server actions, I need to fix the inventory and customer action files first, then move through the vendor pages. The core issues in the inventory actions are that the InventoryLog type definition is incorrect, the low stock filter logic is flawed, and the manual update function needs to properly locate the inventory record by product ID and sync both the inventory table and the products stock column.
+
+Writing the corrected inventory actions file... Writing database query functions... Now I'm writing a function to manually update inventory quantities, which first authenticates the user, retrieves the inventory record by product ID, and then verifies that the user owns the shop associated with that inventory.
+
+Continuing with the update logic... Still writing database queries... Now I'm authenticating the user and verifying they own the shop, then fetching all inventory items to calculate aggregate statistics like total products, total stock quantity, count of items below their thresholds, and average stock per product.
+
+Next I'm building a function to check if a specific product is available for a requested quantity, returning whether it's in stock and how many units are actually available. Then I'm setting up a bulk inventory check that will...
+
+Checking multiple products at once... Finishing up the validation logic by adding the available quantity to the issues array when stock is insufficient, then returning whether all items are available along with any problems found. Now I need to fix the customer activity type to use description and metadata fields instead of activity_data, update the insertion logic accordingly, and correct the sort mapping for "last_order" to point to "last_order_at". For the inventory page, I have to look up the shop UUID from the slug, ensure the params state gets set properly so the edit links work, and fix the navigation to the edit page.
+
+On the customers page, I need to resolve the shop slug to its UUID, set the params state for the view links, correct the field names from full_name to name and last_order_date to last_order_at, and fix the sort value mapping. The customer detail page has similar field name issues with full_name, first_order_date, and last_order_date that need updating to match the actual schema.
+
+I also need to create several new database migrations: RLS policies for INSERT operations on inventory, customer_activity, and customers tables so vendors can create records, a trigger to automatically generate inventory records when products are added, and a backfill operation for existing products. Looking at getShopCustomers, the default sort uses last_order_at correctly, but the UI is passing "last_order" which doesn't exist as a column, so I need to map that properly.
+
+Now I'm restructuring both the inventory and customers pages to resolve the shop slug to its UUID, maintain the slug string in state for navigation links, and fix the field name mismatches throughout—replacing customer.full_name with customer.name, customer.last_order_date with customer.last_order_at, and using the InventoryAdjustmentDialog component instead of linking to a non-existent edit page while also correcting price formatting.
+

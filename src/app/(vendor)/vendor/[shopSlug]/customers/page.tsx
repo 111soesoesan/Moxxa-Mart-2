@@ -1,50 +1,68 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getShopCustomers, getCustomerStats, getHighValueCustomers } from "@/actions/customers";
+import {
+  getShopCustomers,
+  getCustomerStats,
+  getHighValueCustomers,
+  type Customer,
+} from "@/actions/customers";
+import { getShopBySlug } from "@/actions/shops";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Users, TrendingUp, ShoppingCart, DollarSign } from "lucide-react";
 import Link from "next/link";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
+
+type SortOption = "last_order_at" | "total_spent" | "name";
 
 type Props = { params: Promise<{ shopSlug: string }> };
 
 export default function CustomersPage({ params: paramsPromise }: Props) {
-  const [params, setParams] = useState<{ shopSlug: string }>();
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [highValueCustomers, setHighValueCustomers] = useState<any[]>([]);
+  const [shopSlug, setShopSlug] = useState<string>("");
+  const [shopId, setShopId] = useState<string>("");
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [highValueCustomers, setHighValueCustomers] = useState<Customer[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState("last_order");
+  const [sortBy, setSortBy] = useState<SortOption>("last_order_at");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadData() {
+    async function init() {
       try {
         const resolvedParams = await paramsPromise;
-        const shopId = resolvedParams.shopSlug;
+        setShopSlug(resolvedParams.shopSlug);
+        const shop = await getShopBySlug(resolvedParams.shopSlug);
+        if (!shop) return;
+        setShopId(shop.id);
 
         const [customerList, customerStats, highValue] = await Promise.all([
-          getShopCustomers(shopId, { search: searchQuery, sortBy: sortBy as any }),
-          getCustomerStats(shopId),
-          getHighValueCustomers(shopId),
+          getShopCustomers(shop.id, { search: searchQuery, sortBy }),
+          getCustomerStats(shop.id),
+          getHighValueCustomers(shop.id),
         ]);
 
-        setCustomers(customerList);
+        setCustomers(customerList as Customer[]);
         setStats(customerStats);
-        setHighValueCustomers(highValue);
-      } catch (error) {
-        console.error("Failed to load customers:", error);
+        setHighValueCustomers(highValue as Customer[]);
+      } catch (err) {
+        console.error("Failed to load customers:", err);
       } finally {
         setLoading(false);
       }
     }
+    init();
+  }, [paramsPromise]);
 
-    loadData();
-  }, [paramsPromise, searchQuery, sortBy]);
+  useEffect(() => {
+    if (!shopId) return;
+    getShopCustomers(shopId, { search: searchQuery, sortBy }).then((data) =>
+      setCustomers(data as Customer[])
+    );
+  }, [shopId, searchQuery, sortBy]);
 
   if (loading) {
     return (
@@ -70,7 +88,7 @@ export default function CustomersPage({ params: paramsPromise }: Props) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalCustomers || 0}</div>
+            <div className="text-2xl font-bold">{stats?.totalCustomers ?? 0}</div>
             <p className="text-xs text-muted-foreground mt-1">Registered customers</p>
           </CardContent>
         </Card>
@@ -83,7 +101,7 @@ export default function CustomersPage({ params: paramsPromise }: Props) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats?.totalRevenue || 0)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats?.totalRevenue ?? 0)}</div>
             <p className="text-xs text-muted-foreground mt-1">Lifetime value</p>
           </CardContent>
         </Card>
@@ -96,7 +114,7 @@ export default function CustomersPage({ params: paramsPromise }: Props) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats?.averageOrderValue || 0)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats?.averageOrderValue ?? 0)}</div>
             <p className="text-xs text-muted-foreground mt-1">Per transaction</p>
           </CardContent>
         </Card>
@@ -110,7 +128,7 @@ export default function CustomersPage({ params: paramsPromise }: Props) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(stats?.averageCustomerValue || 0)}
+              {formatCurrency(stats?.averageCustomerValue ?? 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">Total per customer</p>
           </CardContent>
@@ -128,10 +146,10 @@ export default function CustomersPage({ params: paramsPromise }: Props) {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {highValueCustomers.slice(0, 5).map((customer: any) => (
+              {highValueCustomers.slice(0, 5).map((customer) => (
                 <div key={customer.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                   <div>
-                    <p className="font-medium text-sm">{customer.full_name}</p>
+                    <p className="font-medium text-sm">{customer.name}</p>
                     <p className="text-xs text-muted-foreground">{customer.email}</p>
                   </div>
                   <div className="text-right">
@@ -155,12 +173,12 @@ export default function CustomersPage({ params: paramsPromise }: Props) {
         />
         <select
           value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          className="px-3 py-2 border rounded-lg text-sm"
+          onChange={(e) => setSortBy(e.target.value as SortOption)}
+          className="px-3 py-2 border rounded-lg text-sm bg-background"
         >
-          <option value="last_order">Last Order</option>
+          <option value="last_order_at">Last Order</option>
           <option value="total_spent">Highest Spent</option>
-          <option value="name">Name A-Z</option>
+          <option value="name">Name A–Z</option>
         </select>
       </div>
 
@@ -189,15 +207,15 @@ export default function CustomersPage({ params: paramsPromise }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {customers.map((customer: any) => (
+                  {customers.map((customer) => (
                     <tr key={customer.id} className="border-b hover:bg-muted/50">
                       <td className="py-3 px-4">
                         <div>
-                          <p className="font-medium">{customer.full_name}</p>
+                          <p className="font-medium">{customer.name}</p>
                           <p className="text-xs text-muted-foreground">{customer.email}</p>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-center text-sm">{customer.phone}</td>
+                      <td className="py-3 px-4 text-center text-sm">{customer.phone ?? "—"}</td>
                       <td className="py-3 px-4 text-center">
                         <Badge variant="outline">{customer.total_orders}</Badge>
                       </td>
@@ -205,15 +223,13 @@ export default function CustomersPage({ params: paramsPromise }: Props) {
                         {formatCurrency(customer.total_spent)}
                       </td>
                       <td className="py-3 px-4 text-center text-sm text-muted-foreground">
-                        {customer.last_order_date
-                          ? new Date(customer.last_order_date).toLocaleDateString()
+                        {customer.last_order_at
+                          ? formatDate(customer.last_order_at)
                           : "N/A"}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <Link href={`/vendor/${params?.shopSlug}/customers/${customer.id}`}>
-                          <Button variant="ghost" size="sm">
-                            View
-                          </Button>
+                        <Link href={`/vendor/${shopSlug}/customers/${customer.id}`}>
+                          <Button variant="ghost" size="sm">View</Button>
                         </Link>
                       </td>
                     </tr>
