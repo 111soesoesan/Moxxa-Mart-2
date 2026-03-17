@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useCartContext } from "@/context/CartContext";
 import { formatCurrency } from "@/lib/utils";
-import { ShoppingCart, Store, MapPin } from "lucide-react";
+import { ShoppingCart, Store, MapPin, AlertCircle, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -116,11 +116,28 @@ export default function ProductPage() {
             <p className="text-muted-foreground leading-relaxed">{product.description}</p>
           )}
 
-          <div className="text-sm text-muted-foreground">
+          {/* Inventory Status */}
+          <div className="space-y-2">
             {product.stock > 0 ? (
-              <span className="text-green-600 font-medium">{product.stock} in stock</span>
+              <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
+                <div>
+                  <p className="font-medium text-green-900">In Stock</p>
+                  <p className="text-sm text-green-700">
+                    {product.stock <= 5
+                      ? `Only ${product.stock} left`
+                      : `${product.stock} available`}
+                  </p>
+                </div>
+              </div>
             ) : (
-              <span className="text-destructive font-medium">Out of stock</span>
+              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <AlertCircle className="h-5 w-5 text-red-600 shrink-0" />
+                <div>
+                  <p className="font-medium text-red-900">Out of Stock</p>
+                  <p className="text-sm text-red-700">Currently unavailable</p>
+                </div>
+              </div>
             )}
           </div>
 

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import type { CartItem } from "@/hooks/useCart";
+import { getOrCreateCustomer, addCustomerActivity } from "./customers";
 
 export type GuestInfo = {
   full_name: string;
@@ -37,11 +38,22 @@ export async function createOrder(payload: CreateOrderPayload) {
     image_url: i.image_url ?? null,
   }));
 
+  // Get or create customer
+  const customerResult = await getOrCreateCustomer(payload.shop_id, {
+    email: payload.customer.email || `guest-${Date.now()}@marketplace.local`,
+    name: payload.customer.full_name,
+    phone: payload.customer.phone,
+  });
+
+  if (customerResult.error) return { error: customerResult.error };
+  const customerId = customerResult.data?.id;
+
   const { data: order, error } = await supabase
     .from("orders")
     .insert({
       shop_id: payload.shop_id,
       user_id: user?.id ?? null,
+      customer_id: customerId,
       items_snapshot,
       customer_snapshot: payload.customer,
       subtotal,
@@ -56,6 +68,16 @@ export async function createOrder(payload: CreateOrderPayload) {
     .single();
 
   if (error) return { error: error.message };
+
+  // Log customer activity
+  if (customerId) {
+    await addCustomerActivity(customerId, "order_placed", {
+      orderId: order.id,
+      total,
+      itemsCount: payload.items.length,
+    });
+  }
+
   return { data: order };
 }
 

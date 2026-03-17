@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       billing_proofs: {
@@ -58,53 +83,262 @@ export type Database = {
           },
         ]
       }
-      ,
-      payment_methods: {
+      blog_comments: {
         Row: {
-          id: string
-          shop_id: string
-          type: string
-          name: string
-          description: string | null
-          bank_name: string | null
-          account_holder: string | null
-          account_number: string | null
-          proof_required: boolean
-          is_active: boolean
+          author_id: string
+          blog_id: string
+          body: string
           created_at: string
+          id: string
+        }
+        Insert: {
+          author_id: string
+          blog_id: string
+          body: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          author_id?: string
+          blog_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blog_comments_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "shop_blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      blog_likes: {
+        Row: {
+          blog_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          blog_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          blog_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_likes_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "shop_blogs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blog_likes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      blog_shares: {
+        Row: {
+          blog_id: string
+          created_at: string
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          blog_id: string
+          created_at?: string
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          blog_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_shares_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "shop_blogs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blog_shares_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_activity: {
+        Row: {
+          activity_type: string
+          created_at: string
+          customer_id: string
+          description: string | null
+          id: string
+          metadata: Json | null
+          reference_id: string | null
+        }
+        Insert: {
+          activity_type: string
+          created_at?: string
+          customer_id: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          reference_id?: string | null
+        }
+        Update: {
+          activity_type?: string
+          created_at?: string
+          customer_id?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          reference_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_activity_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customers: {
+        Row: {
+          created_at: string
+          email: string | null
+          first_order_at: string | null
+          id: string
+          last_order_at: string | null
+          name: string
+          phone: string | null
+          shop_id: string
+          total_orders: number
+          total_spent: number
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          first_order_at?: string | null
+          id?: string
+          last_order_at?: string | null
+          name: string
+          phone?: string | null
+          shop_id: string
+          total_orders?: number
+          total_spent?: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          first_order_at?: string | null
+          id?: string
+          last_order_at?: string | null
+          name?: string
+          phone?: string | null
+          shop_id?: string
+          total_orders?: number
+          total_spent?: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory: {
+        Row: {
+          created_at: string
+          id: string
+          last_updated_at: string
+          low_stock_threshold: number
+          product_id: string
+          reserved_quantity: number
+          shop_id: string
+          sku: string | null
+          stock_quantity: number
           updated_at: string
         }
         Insert: {
-          id?: string
-          shop_id: string
-          type: string
-          name: string
-          description?: string | null
-          bank_name?: string | null
-          account_holder?: string | null
-          account_number?: string | null
-          proof_required?: boolean
-          is_active?: boolean
           created_at?: string
+          id?: string
+          last_updated_at?: string
+          low_stock_threshold?: number
+          product_id: string
+          reserved_quantity?: number
+          shop_id: string
+          sku?: string | null
+          stock_quantity?: number
           updated_at?: string
         }
         Update: {
-          id?: string
-          shop_id?: string
-          type?: string
-          name?: string
-          description?: string | null
-          bank_name?: string | null
-          account_holder?: string | null
-          account_number?: string | null
-          proof_required?: boolean
-          is_active?: boolean
           created_at?: string
+          id?: string
+          last_updated_at?: string
+          low_stock_threshold?: number
+          product_id?: string
+          reserved_quantity?: number
+          shop_id?: string
+          sku?: string | null
+          stock_quantity?: number
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "payment_methods_shop_id_fkey"
+            foreignKeyName: "inventory_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_shop_id_fkey"
             columns: ["shop_id"]
             isOneToOne: false
             referencedRelation: "shops"
@@ -112,10 +346,64 @@ export type Database = {
           },
         ]
       }
-      ,
+      inventory_logs: {
+        Row: {
+          change_type: string
+          created_at: string
+          created_by: string | null
+          id: string
+          inventory_id: string
+          new_quantity: number | null
+          notes: string | null
+          previous_quantity: number | null
+          quantity_change: number
+          reference_id: string | null
+        }
+        Insert: {
+          change_type: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inventory_id: string
+          new_quantity?: number | null
+          notes?: string | null
+          previous_quantity?: number | null
+          quantity_change: number
+          reference_id?: string | null
+        }
+        Update: {
+          change_type?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inventory_id?: string
+          new_quantity?: number | null
+          notes?: string | null
+          previous_quantity?: number | null
+          quantity_change?: number
+          reference_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_logs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_logs_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           created_at: string
+          customer_id: string | null
           customer_snapshot: Json
           id: string
           items_snapshot: Json
@@ -134,6 +422,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          customer_id?: string | null
           customer_snapshot?: Json
           id?: string
           items_snapshot?: Json
@@ -152,6 +441,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          customer_id?: string | null
           customer_snapshot?: Json
           id?: string
           items_snapshot?: Json
@@ -170,6 +460,20 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_payment_method_id_fkey"
+            columns: ["payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "orders_shop_id_fkey"
             columns: ["shop_id"]
             isOneToOne: false
@@ -183,16 +487,61 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      payment_methods: {
+        Row: {
+          account_holder: string | null
+          account_number: string | null
+          bank_name: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          proof_required: boolean
+          shop_id: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          account_holder?: string | null
+          account_number?: string | null
+          bank_name?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          proof_required?: boolean
+          shop_id: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          account_holder?: string | null
+          account_number?: string | null
+          bank_name?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          proof_required?: boolean
+          shop_id?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
           {
-            foreignKeyName: "orders_payment_method_id_fkey"
-            columns: ["payment_method_id"]
+            foreignKeyName: "payment_methods_shop_id_fkey"
+            columns: ["shop_id"]
             isOneToOne: false
-            referencedRelation: "payment_methods"
+            referencedRelation: "shops"
             referencedColumns: ["id"]
           },
         ]
       }
-      ,
       products: {
         Row: {
           attributes: Json
@@ -205,13 +554,13 @@ export type Database = {
           is_active: boolean
           list_on_marketplace: boolean
           name: string
+          payment_method_ids: string[]
           price: number
           shop_id: string
           slug: string
           stock: number
           updated_at: string
           variants: Json
-          payment_method_ids: string[]
         }
         Insert: {
           attributes?: Json
@@ -224,13 +573,13 @@ export type Database = {
           is_active?: boolean
           list_on_marketplace?: boolean
           name: string
+          payment_method_ids?: string[]
           price: number
           shop_id: string
           slug: string
           stock?: number
           updated_at?: string
           variants?: Json
-          payment_method_ids?: string[]
         }
         Update: {
           attributes?: Json
@@ -243,13 +592,13 @@ export type Database = {
           is_active?: boolean
           list_on_marketplace?: boolean
           name?: string
+          payment_method_ids?: string[]
           price?: number
           shop_id?: string
           slug?: string
           stock?: number
           updated_at?: string
           variants?: Json
-          payment_method_ids?: string[]
         }
         Relationships: [
           {
@@ -261,7 +610,6 @@ export type Database = {
           },
         ]
       }
-      ,
       profiles: {
         Row: {
           avatar_url: string | null
@@ -289,7 +637,60 @@ export type Database = {
         }
         Relationships: []
       }
-      ,
+      shop_blogs: {
+        Row: {
+          author_id: string | null
+          body: string
+          category: string | null
+          created_at: string
+          id: string
+          image_urls: string[]
+          published: boolean
+          shop_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          body: string
+          category?: string | null
+          created_at?: string
+          id?: string
+          image_urls?: string[]
+          published?: boolean
+          shop_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          body?: string
+          category?: string | null
+          created_at?: string
+          id?: string
+          image_urls?: string[]
+          published?: boolean
+          shop_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_blogs_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_blogs_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shops: {
         Row: {
           allow_guest_purchase: boolean
@@ -388,181 +789,43 @@ export type Database = {
           },
         ]
       }
-      ,
-      shop_blogs: {
-        Row: {
-          id: string
-          shop_id: string
-          author_id: string | null
-          title: string
-          body: string
-          image_urls: string[]
-          category: string | null
-          published: boolean
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          shop_id: string
-          author_id?: string | null
-          title: string
-          body: string
-          image_urls?: string[]
-          category?: string | null
-          published?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          shop_id?: string
-          author_id?: string | null
-          title?: string
-          body?: string
-          image_urls?: string[]
-          category?: string | null
-          published?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "shop_blogs_shop_id_fkey"
-            columns: ["shop_id"]
-            isOneToOne: false
-            referencedRelation: "shops"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "shop_blogs_author_id_fkey"
-            columns: ["author_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ,
-      blog_likes: {
-        Row: {
-          id: string
-          blog_id: string
-          user_id: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          blog_id: string
-          user_id: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          blog_id?: string
-          user_id?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "blog_likes_blog_id_fkey"
-            columns: ["blog_id"]
-            isOneToOne: false
-            referencedRelation: "shop_blogs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "blog_likes_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ,
-      blog_comments: {
-        Row: {
-          id: string
-          blog_id: string
-          author_id: string
-          body: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          blog_id: string
-          author_id: string
-          body: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          blog_id?: string
-          author_id?: string
-          body?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "blog_comments_blog_id_fkey"
-            columns: ["blog_id"]
-            isOneToOne: false
-            referencedRelation: "shop_blogs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "blog_comments_author_id_fkey"
-            columns: ["author_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ,
-      blog_shares: {
-        Row: {
-          id: string
-          blog_id: string
-          user_id: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          blog_id: string
-          user_id?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          blog_id?: string
-          user_id?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "blog_shares_blog_id_fkey"
-            columns: ["blog_id"]
-            isOneToOne: false
-            referencedRelation: "shop_blogs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "blog_shares_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      manual_inventory_update: {
+        Args: {
+          p_change_type: string
+          p_inventory_id: string
+          p_new_quantity: number
+          p_notes?: string
+          p_user_id?: string
+        }
+        Returns: boolean
+      }
+      restore_inventory_on_cancel: {
+        Args: {
+          p_inventory_id: string
+          p_order_id: string
+          p_quantity: number
+          p_user_id?: string
+        }
+        Returns: boolean
+      }
+      update_customer_stats_on_order: {
+        Args: { p_customer_id: string; p_order_total: number }
+        Returns: boolean
+      }
+      update_inventory_on_order: {
+        Args: {
+          p_inventory_id: string
+          p_order_id: string
+          p_quantity: number
+          p_user_id?: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
@@ -691,8 +954,10 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
 } as const
-

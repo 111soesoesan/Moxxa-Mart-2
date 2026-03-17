@@ -38,6 +38,8 @@ import {
   ExternalLink,
   ChevronsUpDown,
   Newspaper,
+  Users,
+  BarChart3,
 } from "lucide-react";
 import { signOut } from "@/actions/auth";
 
@@ -66,6 +68,8 @@ const NAV_ITEMS = [
   { segment: null, label: "Dashboard", icon: LayoutDashboard, exact: true },
   { segment: "products", label: "Products", icon: Package, exact: false },
   { segment: "orders", label: "Orders", icon: ShoppingBag, exact: false },
+  { segment: "inventory", label: "Inventory", icon: BarChart3, exact: false },
+  { segment: "customers", label: "Customers", icon: Users, exact: false },
   { segment: "blogs", label: "Blogs", icon: Newspaper, exact: false },
   { segment: "payment-methods", label: "Payment Methods", icon: Banknote, exact: false },
   { segment: "billing", label: "Billing", icon: CreditCard, exact: false },
