@@ -89,6 +89,7 @@ export default async function VendorOrdersPage({ params }: Props) {
                         paymentStatus={order.payment_status}
                         orderStatus={order.status}
                         paymentProofUrl={order.payment_proof_url ?? null}
+                        paymentMethodType={(order.payment_methods as { type?: string } | null)?.type ?? null}
                       />
                     </div>
                   </CardContent>

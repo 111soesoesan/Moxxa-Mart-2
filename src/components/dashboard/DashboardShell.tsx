@@ -1,29 +1,69 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { AppSidebar, type SidebarShop, type SidebarProfile } from "./AppSidebar";
 
-const PAGE_TITLES: Record<string, string> = {
+const SEGMENT_LABELS: Record<string, string> = {
   products: "Products",
-  orders:   "Orders",
-  billing:  "Billing",
+  orders: "Orders",
+  inventory: "Inventory",
+  customers: "Customers",
+  blogs: "Blogs",
+  billing: "Billing",
   settings: "Settings",
+  "payment-methods": "Payment Methods",
 };
 
-function getPageTitle(pathname: string, shopSlug: string): string {
+type BreadcrumbEntry = { label: string; href?: string };
+
+function getBreadcrumbs(pathname: string, shopSlug: string, shopName: string): BreadcrumbEntry[] {
   const base = `/vendor/${shopSlug}`;
   const after = pathname.slice(base.length).replace(/^\//, "");
-  const segment = after.split("/")[0];
+  const parts = after.split("/").filter(Boolean);
 
-  if (!segment) return "Dashboard";
-  if (segment === "products") {
-    if (after.includes("/edit")) return "Edit Product";
-    if (after.endsWith("/new"))  return "Add Product";
-    return "Products";
+  if (parts.length === 0) {
+    return [{ label: shopName }];
   }
-  return PAGE_TITLES[segment] ?? "Dashboard";
+
+  const [section, sub, sub2] = parts;
+  const sectionLabel = SEGMENT_LABELS[section] ?? section;
+  const crumbs: BreadcrumbEntry[] = [{ label: shopName, href: base }];
+
+  if (!sub) {
+    crumbs.push({ label: sectionLabel });
+  } else if (section === "products") {
+    crumbs.push({ label: "Products", href: `${base}/products` });
+    if (sub === "new") crumbs.push({ label: "New Product" });
+    else if (sub2 === "edit") crumbs.push({ label: "Edit Product" });
+    else crumbs.push({ label: "Product" });
+  } else if (section === "orders") {
+    crumbs.push({ label: "Orders", href: `${base}/orders` });
+    crumbs.push({ label: "Order Details" });
+  } else if (section === "customers") {
+    crumbs.push({ label: "Customers", href: `${base}/customers` });
+    crumbs.push({ label: "Customer Details" });
+  } else if (section === "blogs") {
+    crumbs.push({ label: "Blogs", href: `${base}/blogs` });
+    if (sub === "new") crumbs.push({ label: "New Post" });
+    else if (sub2 === "edit") crumbs.push({ label: "Edit Post" });
+    else crumbs.push({ label: "Post" });
+  } else {
+    crumbs.push({ label: sectionLabel, href: `${base}/${section}` });
+    crumbs.push({ label: sub });
+  }
+
+  return crumbs;
 }
 
 type Props = {
@@ -35,18 +75,35 @@ type Props = {
 
 export function DashboardShell({ shops, currentShop, profile, children }: Props) {
   const pathname = usePathname();
-  const title = getPageTitle(pathname, currentShop.slug);
+  const crumbs = getBreadcrumbs(pathname, currentShop.slug, currentShop.name);
 
   return (
     <SidebarProvider>
       <AppSidebar shops={shops} currentShop={currentShop} profile={profile} />
 
       <SidebarInset>
-        {/* ── Top header ── */}
+        {/* ── Top header with breadcrumbs ── */}
         <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border/50 bg-white px-6 dark:bg-slate-950">
           <SidebarTrigger className="-ml-2" />
-          <Separator orientation="vertical" className="my-2"/>
-          <h1 className="text-lg font-semibold tracking-tight text-foreground">{title}</h1>
+          <Separator orientation="vertical" className="my-2" />
+          <Breadcrumb>
+            <BreadcrumbList>
+              {crumbs.map((crumb, i) => (
+                <span key={i} className="inline-flex items-center gap-1.5">
+                  {i > 0 && <BreadcrumbSeparator />}
+                  <BreadcrumbItem>
+                    {i < crumbs.length - 1 && crumb.href ? (
+                      <BreadcrumbLink asChild>
+                        <Link href={crumb.href}>{crumb.label}</Link>
+                      </BreadcrumbLink>
+                    ) : (
+                      <BreadcrumbPage className="font-semibold">{crumb.label}</BreadcrumbPage>
+                    )}
+                  </BreadcrumbItem>
+                </span>
+              ))}
+            </BreadcrumbList>
+          </Breadcrumb>
         </header>
 
         {/* ── Page content ── */}

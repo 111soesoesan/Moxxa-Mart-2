@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ShopShareCard } from "@/components/vendor/ShopShareCard";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { Package, ShoppingBag, DollarSign, ClipboardCheck, AlertCircle, TrendingUp, ArrowRight } from "lucide-react";
 import { revalidatePath } from "next/cache";
@@ -105,6 +106,13 @@ export default async function ShopDashboardPage({ params }: Props) {
           </AlertDescription>
         </Alert>
       )}
+
+      {/* Share Your Shop */}
+      <ShopShareCard
+        shopSlug={shop.slug}
+        shopName={shop.name}
+        status={shop.status as "draft" | "pending" | "active" | "rejected" | "suspended"}
+      />
 
       {/* Metrics Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

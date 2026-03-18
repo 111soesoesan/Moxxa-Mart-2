@@ -18,9 +18,10 @@ type Props = {
   paymentStatus: string;
   orderStatus: string;
   paymentProofUrl: string | null;
+  paymentMethodType?: string | null;
 };
 
-export function OrderStatusActions({ orderId, paymentStatus, orderStatus, paymentProofUrl }: Props) {
+export function OrderStatusActions({ orderId, paymentStatus, orderStatus, paymentProofUrl, paymentMethodType }: Props) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -30,7 +31,7 @@ export function OrderStatusActions({ orderId, paymentStatus, orderStatus, paymen
       if (result?.error) {
         toast.error(result.error);
       } else {
-        toast.success("Order marked as paid.");
+        toast.success("Order confirmed and marked as paid.");
         router.refresh();
       }
     });
@@ -48,13 +49,24 @@ export function OrderStatusActions({ orderId, paymentStatus, orderStatus, paymen
     });
   };
 
+  const isCash = paymentMethodType === "cash";
+  const isCancelled = orderStatus === "cancelled";
+  const isDelivered = orderStatus === "delivered";
+
+  const showCashConfirm =
+    isCash &&
+    paymentStatus === "unpaid" &&
+    !isCancelled &&
+    !isDelivered;
+
   const canUpdateStatus =
     paymentStatus === "paid" &&
-    orderStatus !== "delivered" &&
-    orderStatus !== "cancelled";
+    !isDelivered &&
+    !isCancelled;
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
+      {/* Confirm button for bank-transfer proof */}
       {paymentStatus === "pending_verification" && (
         <Button
           size="sm"
@@ -63,6 +75,18 @@ export function OrderStatusActions({ orderId, paymentStatus, orderStatus, paymen
           className="h-7 text-xs bg-green-600 hover:bg-green-700"
         >
           ✓ Mark Paid
+        </Button>
+      )}
+
+      {/* Confirm button for cash/COD orders */}
+      {showCashConfirm && (
+        <Button
+          size="sm"
+          onClick={handleMarkPaid}
+          disabled={isPending}
+          className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
+        >
+          ✓ Confirm (Cash Received)
         </Button>
       )}
 

@@ -6,7 +6,6 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { ShopShareCard } from "@/components/vendor/ShopShareCard";
 import { HubHeader } from "@/components/dashboard/HubHeader";
 import { Plus, Store, LayoutDashboard } from "lucide-react";
 
@@ -53,15 +52,6 @@ export default async function VendorHubPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Share Card - Prominent at top */}
-            {shops.length > 0 && (
-              <ShopShareCard
-                shopSlug={shops[0].slug}
-                shopName={shops[0].name}
-                status={shops[0].status as any}
-              />
-            )}
-
             {/* Shops Grid */}
             <div>
               <h2 className="text-lg font-semibold mb-4">Your Shops</h2>

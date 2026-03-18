@@ -73,8 +73,9 @@ export default async function VendorOrderDetailPage({ params }: Props) {
             paymentStatus={order.payment_status}
             orderStatus={order.status}
             paymentProofUrl={order.payment_proof_url ?? null}
+            paymentMethodType={(order.payment_methods as { type?: string } | null)?.type ?? null}
           />
-          {order.payment_status === "unpaid" && (
+          {order.payment_status === "unpaid" && (order.payment_methods as { type?: string } | null)?.type !== "cash" && (
             <p className="text-xs text-muted-foreground mt-3">
               Waiting for customer to submit payment proof.
             </p>

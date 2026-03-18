@@ -123,11 +123,13 @@ export default function ProductPage() {
                 <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
                 <div>
                   <p className="font-medium text-green-900">In Stock</p>
-                  <p className="text-sm text-green-700">
-                    {product.stock <= 5
-                      ? `Only ${product.stock} left`
-                      : `${product.stock} available`}
-                  </p>
+                  {product.track_inventory && (
+                    <p className="text-sm text-green-700">
+                      {product.stock <= 5
+                        ? `Only ${product.stock} left`
+                        : `${product.stock} available`}
+                    </p>
+                  )}
                 </div>
               </div>
             ) : (
@@ -148,7 +150,12 @@ export default function ProductPage() {
                 <div className="flex items-center gap-2">
                   <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setQuantity(Math.max(1, quantity - 1))}>−</Button>
                   <span className="w-8 text-center font-medium">{quantity}</span>
-                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}>+</Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setQuantity(product.track_inventory ? Math.min(product.stock, quantity + 1) : quantity + 1)}
+                  >+</Button>
                 </div>
               </div>
               <div className="flex gap-3">

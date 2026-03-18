@@ -147,7 +147,7 @@ export async function getShopOrders(shopId: string) {
 
   const { data } = await supabase
     .from("orders")
-    .select("*")
+    .select("*, payment_methods(id, name, type, proof_required)")
     .eq("shop_id", shopId)
     .order("created_at", { ascending: false });
 
@@ -185,11 +185,11 @@ export async function markOrderPaid(orderId: string) {
 
   const { data: order } = await supabase
     .from("orders")
-    .select("shop_id, shops(owner_id)")
+    .select("shop_id, status, items_snapshot, shops(owner_id, slug)")
     .eq("id", orderId)
     .single();
 
-  const shop = order?.shops as { owner_id: string } | null;
+  const shop = order?.shops as { owner_id: string; slug: string } | null;
   if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
 
   const { error } = await supabase
@@ -198,7 +198,55 @@ export async function markOrderPaid(orderId: string) {
     .eq("id", orderId);
 
   if (error) return { error: error.message };
+
+  // Deduct inventory for tracked products
+  const items = (order?.items_snapshot ?? []) as Array<{
+    product_id: string;
+    quantity: number;
+  }>;
+
+  for (const item of items) {
+    const { data: product } = await supabase
+      .from("products")
+      .select("track_inventory, stock")
+      .eq("id", item.product_id)
+      .single();
+
+    if (!product?.track_inventory) continue;
+
+    const { data: inv } = await supabase
+      .from("inventory")
+      .select("id, stock_quantity")
+      .eq("product_id", item.product_id)
+      .single();
+
+    if (!inv) continue;
+
+    const previousQty = inv.stock_quantity;
+    const newQty = Math.max(0, previousQty - item.quantity);
+
+    await supabase
+      .from("inventory")
+      .update({ stock_quantity: newQty })
+      .eq("id", inv.id);
+
+    await supabase
+      .from("products")
+      .update({ stock: newQty })
+      .eq("id", item.product_id);
+
+    await supabase.from("inventory_logs").insert({
+      inventory_id: inv.id,
+      change_type: "sale",
+      quantity_change: -item.quantity,
+      previous_quantity: previousQty,
+      new_quantity: newQty,
+      reference_id: orderId,
+    });
+  }
+
   revalidatePath(`/vendor`);
+  if (shop.slug) revalidatePath(`/vendor/${shop.slug}/inventory`);
   return { success: true };
 }
 
@@ -230,7 +278,7 @@ export async function validateCart(items: CartItem[]): Promise<CartValidationRes
   const ids = items.map((i) => i.product_id);
   const { data: products } = await supabase
     .from("products")
-    .select("id, name, price, stock, is_active")
+    .select("id, name, price, stock, is_active, track_inventory")
     .in("id", ids);
 
   const map = new Map((products ?? []).map((p) => [p.id, p]));
@@ -246,7 +294,8 @@ export async function validateCart(items: CartItem[]): Promise<CartValidationRes
       issues.push({ product_id: item.product_id, name: item.name, type: "out_of_stock" });
       continue;
     }
-    if (live.stock < item.quantity) {
+    // For tracked products only: enforce quantity limit
+    if (live.track_inventory && live.stock < item.quantity) {
       issues.push({
         product_id: item.product_id,
         name: item.name,
