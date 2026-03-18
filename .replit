@@ -11,8 +11,6 @@ channel = "stable-25_05"
 [userenv.shared]
 NEXT_PUBLIC_SUPABASE_URL = "https://vktnmqvrpusnfewxevlb.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrdG5tcXZycHVzbmZld3hldmxiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0MDIwMTgsImV4cCI6MjA4ODk3ODAxOH0.qgq2kFoH8cONXkaTEUOKYg_oK74sjcSx4v0hmLwwFcY"
-SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrdG5tcXZycHVzbmZld3hldmxiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzQwMjAxOCwiZXhwIjoyMDg4OTc4MDE4fQ.0cnADnJ5XE9VRakJwQhJw-MFxL3Z171QUXt03ntli4g"
-SUPABASE_PROJECT_ID = "vktnmqvrpusnfewxevlb"
 
 [workflows]
 runButton = "Project"
