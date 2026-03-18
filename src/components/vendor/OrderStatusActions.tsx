@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { updateOrderStatus, markOrderPaid } from "@/actions/orders";
+import { updateOrderStatus, markOrderPaid, confirmCODOrder, markCODPaid } from "@/actions/orders";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -21,56 +21,44 @@ type Props = {
   paymentMethodType?: string | null;
 };
 
-export function OrderStatusActions({ orderId, paymentStatus, orderStatus, paymentProofUrl, paymentMethodType }: Props) {
+const NEXT_STATUSES: Record<string, string[]> = {
+  pending:    ["confirmed", "cancelled"],
+  confirmed:  ["processing", "shipped", "delivered", "cancelled"],
+  processing: ["shipped", "delivered", "cancelled"],
+  shipped:    ["delivered", "cancelled"],
+  delivered:  [],
+  cancelled:  [],
+};
+
+export function OrderStatusActions({
+  orderId,
+  paymentStatus,
+  orderStatus,
+  paymentProofUrl,
+  paymentMethodType,
+}: Props) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  const handleMarkPaid = () => {
+  const run = (fn: () => Promise<{ error?: string; success?: boolean }>) =>
     startTransition(async () => {
-      const result = await markOrderPaid(orderId);
-      if (result?.error) {
-        toast.error(result.error);
-      } else {
-        toast.success("Order confirmed and marked as paid.");
-        router.refresh();
-      }
+      const result = await fn();
+      if (result?.error) toast.error(result.error);
+      else router.refresh();
     });
-  };
-
-  const handleStatusUpdate = (status: string) => {
-    startTransition(async () => {
-      const result = await updateOrderStatus(orderId, status);
-      if (result?.error) {
-        toast.error(result.error);
-      } else {
-        toast.success(`Order status updated to ${status}.`);
-        router.refresh();
-      }
-    });
-  };
 
   const isCash = paymentMethodType === "cash";
-  const isCancelled = orderStatus === "cancelled";
-  const isDelivered = orderStatus === "delivered";
-
-  const showCashConfirm =
-    isCash &&
-    paymentStatus === "unpaid" &&
-    !isCancelled &&
-    !isDelivered;
-
-  const canUpdateStatus =
-    paymentStatus === "paid" &&
-    !isDelivered &&
-    !isCancelled;
+  const nextStatuses = NEXT_STATUSES[orderStatus] ?? [];
+  const isTerminal = orderStatus === "delivered" || orderStatus === "cancelled";
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      {/* Confirm button for bank-transfer proof */}
-      {paymentStatus === "pending_verification" && (
+
+      {/* Bank transfer: verify payment proof */}
+      {!isCash && paymentStatus === "pending_verification" && (
         <Button
           size="sm"
-          onClick={handleMarkPaid}
+          onClick={() => run(() => markOrderPaid(orderId))}
           disabled={isPending}
           className="h-7 text-xs bg-green-600 hover:bg-green-700"
         >
@@ -78,25 +66,42 @@ export function OrderStatusActions({ orderId, paymentStatus, orderStatus, paymen
         </Button>
       )}
 
-      {/* Confirm button for cash/COD orders */}
-      {showCashConfirm && (
+      {/* COD: confirm order (no payment proof needed) */}
+      {isCash && orderStatus === "pending" && (
         <Button
           size="sm"
-          onClick={handleMarkPaid}
+          onClick={() => run(() => confirmCODOrder(orderId))}
           disabled={isPending}
-          className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
+          className="h-7 text-xs bg-blue-600 hover:bg-blue-700"
         >
-          ✓ Confirm (Cash Received)
+          ✓ Confirm Order
         </Button>
       )}
 
-      {canUpdateStatus && (
-        <Select onValueChange={handleStatusUpdate} disabled={isPending}>
+      {/* COD: mark cash collected */}
+      {isCash && orderStatus !== "pending" && orderStatus !== "cancelled" && paymentStatus !== "paid" && (
+        <Button
+          size="sm"
+          onClick={() => run(() => markCODPaid(orderId))}
+          disabled={isPending}
+          variant="outline"
+          className="h-7 text-xs"
+        >
+          💵 Cash Collected
+        </Button>
+      )}
+
+      {/* Status progression (available for bank if paid, or COD any non-terminal) */}
+      {!isTerminal && nextStatuses.length > 0 && (paymentStatus === "paid" || isCash) && orderStatus !== "pending" && (
+        <Select
+          onValueChange={(s) => run(() => updateOrderStatus(orderId, s))}
+          disabled={isPending}
+        >
           <SelectTrigger className="h-7 text-xs w-36">
             <SelectValue placeholder="Update status" />
           </SelectTrigger>
           <SelectContent>
-            {["processing", "shipped", "delivered", "cancelled"].map((s) => (
+            {nextStatuses.map((s) => (
               <SelectItem key={s} value={s} className="text-xs capitalize">
                 {s}
               </SelectItem>

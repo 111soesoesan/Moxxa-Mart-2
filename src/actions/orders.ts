@@ -199,55 +199,196 @@ export async function markOrderPaid(orderId: string) {
 
   if (error) return { error: error.message };
 
-  // Deduct inventory for tracked products
-  const items = (order?.items_snapshot ?? []) as Array<{
-    product_id: string;
-    quantity: number;
-  }>;
-
-  for (const item of items) {
-    const { data: product } = await supabase
-      .from("products")
-      .select("track_inventory, stock")
-      .eq("id", item.product_id)
-      .single();
-
-    if (!product?.track_inventory) continue;
-
-    const { data: inv } = await supabase
-      .from("inventory")
-      .select("id, stock_quantity")
-      .eq("product_id", item.product_id)
-      .single();
-
-    if (!inv) continue;
-
-    const previousQty = inv.stock_quantity;
-    const newQty = Math.max(0, previousQty - item.quantity);
-
-    await supabase
-      .from("inventory")
-      .update({ stock_quantity: newQty })
-      .eq("id", inv.id);
-
-    await supabase
-      .from("products")
-      .update({ stock: newQty })
-      .eq("id", item.product_id);
-
-    await supabase.from("inventory_logs").insert({
-      inventory_id: inv.id,
-      change_type: "sale",
-      quantity_change: -item.quantity,
-      previous_quantity: previousQty,
-      new_quantity: newQty,
-      reference_id: orderId,
-    });
-  }
+  // Inventory deduction is handled automatically by the
+  // deduct_inventory_on_confirmation DB trigger when status → 'confirmed'.
 
   revalidatePath(`/vendor`);
   if (shop.slug) revalidatePath(`/vendor/${shop.slug}/inventory`);
+  if (shop.slug) revalidatePath(`/vendor/${shop.slug}/orders`);
   return { success: true };
+}
+
+/** COD: confirm the order (status → confirmed, triggering inventory deduction via DB trigger) */
+export async function confirmCODOrder(orderId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: order } = await supabase
+    .from("orders")
+    .select("shop_id, status, shops(owner_id, slug)")
+    .eq("id", orderId)
+    .single();
+
+  const shop = order?.shops as { owner_id: string; slug: string } | null;
+  if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
+  if (order?.status !== "pending") return { error: "Order must be in pending state to confirm" };
+
+  const { error } = await supabase
+    .from("orders")
+    .update({ status: "confirmed" })
+    .eq("id", orderId);
+
+  if (error) return { error: error.message };
+  revalidatePath(`/vendor`);
+  if (shop.slug) revalidatePath(`/vendor/${shop.slug}/orders`);
+  return { success: true };
+}
+
+/** COD: mark cash as collected (payment_status → paid) without changing order status */
+export async function markCODPaid(orderId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: order } = await supabase
+    .from("orders")
+    .select("shop_id, status, shops(owner_id, slug)")
+    .eq("id", orderId)
+    .single();
+
+  const shop = order?.shops as { owner_id: string; slug: string } | null;
+  if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
+  if (order?.status === "cancelled") return { error: "Cannot mark a cancelled order as paid" };
+
+  const { error } = await supabase
+    .from("orders")
+    .update({ payment_status: "paid" })
+    .eq("id", orderId);
+
+  if (error) return { error: error.message };
+  revalidatePath(`/vendor`);
+  if (shop.slug) revalidatePath(`/vendor/${shop.slug}/orders`);
+  return { success: true };
+}
+
+/** Delete a single order. Restores inventory if the order was confirmed. */
+export async function deleteOrder(orderId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: order } = await supabase
+    .from("orders")
+    .select("shop_id, status, items_snapshot, shops(owner_id, slug)")
+    .eq("id", orderId)
+    .single();
+
+  const shop = order?.shops as { owner_id: string; slug: string } | null;
+  if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
+
+  const svc = await createServiceClient();
+
+  // Restore inventory for confirmed/processing/shipped orders
+  const restoreStatuses = ["confirmed", "processing", "shipped", "delivered"];
+  if (order?.status && restoreStatuses.includes(order.status)) {
+    const items = (order.items_snapshot ?? []) as Array<{ product_id: string; quantity: number }>;
+    for (const item of items) {
+      const { data: product } = await svc.from("products").select("track_inventory").eq("id", item.product_id).single();
+      if (!product?.track_inventory) continue;
+
+      const { data: inv } = await svc.from("inventory").select("id, stock_quantity").eq("product_id", item.product_id).single();
+      if (!inv) continue;
+
+      const newQty = inv.stock_quantity + item.quantity;
+      await svc.from("inventory").update({ stock_quantity: newQty, updated_at: new Date().toISOString() }).eq("id", inv.id);
+      await svc.from("products").update({ stock: newQty }).eq("id", item.product_id);
+      await svc.from("inventory_logs").insert({
+        inventory_id: inv.id,
+        change_type: "cancel",
+        quantity_change: item.quantity,
+        previous_quantity: inv.stock_quantity,
+        new_quantity: newQty,
+        reference_id: orderId,
+      });
+    }
+  }
+
+  const { error } = await svc.from("orders").delete().eq("id", orderId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/vendor`);
+  if (shop.slug) revalidatePath(`/vendor/${shop.slug}/orders`);
+  return { success: true };
+}
+
+/** Bulk update order statuses for the authenticated vendor's orders. */
+export async function bulkUpdateOrderStatus(orderIds: string[], status: string) {
+  if (!orderIds.length) return { error: "No orders selected" };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  // Verify ownership: all orders must belong to the current user's shops
+  const { data: orders } = await supabase
+    .from("orders")
+    .select("id, shops(owner_id)")
+    .in("id", orderIds);
+
+  const unauthorized = (orders ?? []).some(
+    (o) => (o.shops as { owner_id: string } | null)?.owner_id !== user.id
+  );
+  if (unauthorized) return { error: "Unauthorized" };
+
+  const { error, count } = await supabase
+    .from("orders")
+    .update({ status })
+    .in("id", orderIds);
+
+  if (error) return { error: error.message };
+  revalidatePath(`/vendor`);
+  return { success: true, updated: count ?? orderIds.length };
+}
+
+/** Bulk delete orders. Restores inventory for confirmed/active orders. */
+export async function bulkDeleteOrders(orderIds: string[]) {
+  if (!orderIds.length) return { error: "No orders selected" };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: orders } = await supabase
+    .from("orders")
+    .select("id, status, items_snapshot, shops(owner_id)")
+    .in("id", orderIds);
+
+  const unauthorized = (orders ?? []).some(
+    (o) => (o.shops as { owner_id: string } | null)?.owner_id !== user.id
+  );
+  if (unauthorized) return { error: "Unauthorized" };
+
+  const svc = await createServiceClient();
+  const restoreStatuses = ["confirmed", "processing", "shipped", "delivered"];
+
+  for (const order of orders ?? []) {
+    if (!restoreStatuses.includes(order.status)) continue;
+    const items = (order.items_snapshot ?? []) as Array<{ product_id: string; quantity: number }>;
+    for (const item of items) {
+      const { data: product } = await svc.from("products").select("track_inventory").eq("id", item.product_id).single();
+      if (!product?.track_inventory) continue;
+      const { data: inv } = await svc.from("inventory").select("id, stock_quantity").eq("product_id", item.product_id).single();
+      if (!inv) continue;
+      const newQty = inv.stock_quantity + item.quantity;
+      await svc.from("inventory").update({ stock_quantity: newQty, updated_at: new Date().toISOString() }).eq("id", inv.id);
+      await svc.from("products").update({ stock: newQty }).eq("id", item.product_id);
+      await svc.from("inventory_logs").insert({
+        inventory_id: inv.id,
+        change_type: "cancel",
+        quantity_change: item.quantity,
+        previous_quantity: inv.stock_quantity,
+        new_quantity: newQty,
+        reference_id: order.id,
+      });
+    }
+  }
+
+  const { error } = await svc.from("orders").delete().in("id", orderIds);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/vendor`);
+  return { success: true, deleted: orderIds.length };
 }
 
 export async function getRecentOrdersStats() {
