@@ -52,9 +52,23 @@ src/
 | `SUPABASE_PROJECT_ID` | Replit env var (shared) | Used for CLI commands |
 | `SUPABASE_SERVICE_ROLE_KEY` | Replit Secret | Service role key — never expose client-side |
 
+## Product Management System
+
+Variable/simple products with full attribute + variation support:
+- **Actions**: `categories.ts`, `attributes.ts`, `variations.ts`, updated `products.ts`
+- **DB tables**: `categories`, `attributes`, `attribute_items`, `product_categories`, `product_variations` (all with RLS)
+- **New product columns**: `product_type`, `status`, `sku`, `sale_price`, `sale_start`, `sale_end`, `main_image`, `gallery_images`
+- **Pages**:
+  - All Products — TanStack React Table with search, filters, bulk delete/status, row click to edit
+  - Categories — CRUD with parent/child hierarchy
+  - Attributes — CRUD with typed items (select/color/text), color picker
+  - New/Edit Product — `ProductForm` component with tabs: General, Pricing, Inventory, Attributes, Variations
+- **ProductForm** (`src/components/vendor/products/ProductForm.tsx`): tabbed form, cartesian variation generation, inline variation editing, bulk edit dialog, image upload per variation
+- **Sidebar**: Products collapsible submenu using `Collapsible` from `radix-ui` (namespace pattern: `Collapsible.Root/Trigger/Content`)
+
 ## Database
 
-Schema lives in `supabase/migrations/`. Tables: `profiles`, `shops`, `products`, `orders`, `payment_methods`, `billing_proofs`, `shop_blogs`, `blog_likes`, `blog_comments`, `blog_shares`, `inventory`, `inventory_logs`, `customers`, `customer_activity`.
+Schema lives in `supabase/migrations/`. Tables: `profiles`, `shops`, `products`, `categories`, `attributes`, `attribute_items`, `product_categories`, `product_variations`, `orders`, `payment_methods`, `billing_proofs`, `shop_blogs`, `blog_likes`, `blog_comments`, `blog_shares`, `inventory`, `inventory_logs`, `customers`, `customer_activity`.
 
 ## Dev Commands
 

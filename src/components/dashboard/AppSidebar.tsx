@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import {
   Sidebar,
@@ -14,6 +15,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarRail,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
@@ -40,7 +44,12 @@ import {
   Newspaper,
   Users,
   BarChart3,
+  ChevronRight,
+  List,
+  Tag,
+  FolderTree,
 } from "lucide-react";
+import { Collapsible } from "radix-ui";
 import { signOut } from "@/actions/auth";
 
 export type SidebarShop = {
@@ -64,18 +73,6 @@ type Props = {
   profile: SidebarProfile;
 };
 
-const NAV_ITEMS = [
-  { segment: null, label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { segment: "products", label: "Products", icon: Package, exact: false },
-  { segment: "orders", label: "Orders", icon: ShoppingBag, exact: false },
-  { segment: "inventory", label: "Inventory", icon: BarChart3, exact: false },
-  { segment: "customers", label: "Customers", icon: Users, exact: false },
-  { segment: "blogs", label: "Blogs", icon: Newspaper, exact: false },
-  { segment: "payment-methods", label: "Payment Methods", icon: Banknote, exact: false },
-  { segment: "billing", label: "Billing", icon: CreditCard, exact: false },
-  { segment: "settings", label: "Settings", icon: Settings, exact: false },
-] as const;
-
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-500",
   draft: "bg-yellow-400",
@@ -84,16 +81,45 @@ const STATUS_COLORS: Record<string, string> = {
   suspended: "bg-red-500",
 };
 
+const PRODUCTS_SUBITEMS = [
+  { segment: "products", label: "All Products", icon: List, exact: true },
+  { segment: "products/new", label: "Add New Product", icon: Plus, exact: false },
+  { segment: "products/attributes", label: "Attributes", icon: Tag, exact: false },
+  { segment: "products/categories", label: "Categories", icon: FolderTree, exact: false },
+] as const;
+
+const OTHER_NAV_ITEMS = [
+  { segment: "orders", label: "Orders", icon: ShoppingBag },
+  { segment: "inventory", label: "Inventory", icon: BarChart3 },
+  { segment: "customers", label: "Customers", icon: Users },
+  { segment: "blogs", label: "Blogs", icon: Newspaper },
+  { segment: "payment-methods", label: "Payment Methods", icon: Banknote },
+  { segment: "billing", label: "Billing", icon: CreditCard },
+  { segment: "settings", label: "Settings", icon: Settings },
+] as const;
+
 export function AppSidebar({ shops, currentShop, profile }: Props) {
   const pathname = usePathname();
   const base = `/vendor/${currentShop.slug}`;
   const displayName = profile.full_name ?? profile.email ?? "User";
 
-  const isActive = (segment: string | null, exact?: boolean) => {
-    const href = segment ? `${base}/${segment}` : base;
+  const isActive = (segment: string, exact = false) => {
+    const href = `${base}/${segment}`;
     if (exact) return pathname === href;
     return pathname === href || pathname.startsWith(`${href}/`);
   };
+
+  const isDashboardActive = pathname === base;
+
+  const isProductsActive = PRODUCTS_SUBITEMS.some((item) =>
+    isActive(item.segment, item.exact)
+  );
+
+  const [productsOpen, setProductsOpen] = useState(isProductsActive);
+
+  useEffect(() => {
+    if (isProductsActive) setProductsOpen(true);
+  }, [isProductsActive]);
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border/50">
@@ -156,8 +182,7 @@ export function AppSidebar({ shops, currentShop, profile }: Props) {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link href="/vendor/onboarding">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create new shop
+                    <Plus className="mr-2 h-4 w-4" />Create new shop
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -172,20 +197,69 @@ export function AppSidebar({ shops, currentShop, profile }: Props) {
           <SidebarGroupLabel>Workspace</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV_ITEMS.map(({ segment, label, icon: Icon, exact }) => (
-                <SidebarMenuItem key={label}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(segment, exact)}
-                    tooltip={label}
-                  >
-                    <Link href={segment ? `${base}/${segment}` : base}>
-                      <Icon />
-                      <span>{label}</span>
-                    </Link>
-                  </SidebarMenuButton>
+              {/* Dashboard */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isDashboardActive} tooltip="Dashboard">
+                  <Link href={base}>
+                    <LayoutDashboard />
+                    <span>Dashboard</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {/* Products — collapsible submenu */}
+              <Collapsible.Root
+                open={productsOpen}
+                onOpenChange={setProductsOpen}
+                className="group/products"
+              >
+                <SidebarMenuItem>
+                  <Collapsible.Trigger asChild>
+                    <SidebarMenuButton
+                      isActive={isProductsActive}
+                      tooltip="Products"
+                      className="w-full"
+                    >
+                      <Package />
+                      <span>Products</span>
+                      <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/products:rotate-90" />
+                    </SidebarMenuButton>
+                  </Collapsible.Trigger>
+                  <Collapsible.Content>
+                    <SidebarMenuSub>
+                      {PRODUCTS_SUBITEMS.map((item) => (
+                        <SidebarMenuSubItem key={item.segment}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={isActive(item.segment, item.exact)}
+                          >
+                            <Link href={`${base}/${item.segment}`}>
+                              <item.icon className="h-3.5 w-3.5" />
+                              <span>{item.label}</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </Collapsible.Content>
                 </SidebarMenuItem>
-              ))}
+              </Collapsible.Root>
+
+              {/* Other nav items */}
+              {OTHER_NAV_ITEMS.map((item) => {
+                const href = `${base}/${item.segment}`;
+                const active = pathname === href || pathname.startsWith(`${href}/`);
+                return (
+                  <SidebarMenuItem key={item.segment}>
+                    <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+                      <Link href={href}>
+                        <item.icon />
+                        <span>{item.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

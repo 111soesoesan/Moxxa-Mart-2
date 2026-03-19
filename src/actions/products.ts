@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import type { TablesInsert, TablesUpdate } from "@/types/supabase";
 
-// Keep form data aligned with Supabase generated types
 type ProductInsert = TablesInsert<"products">;
 type ProductUpdate = TablesUpdate<"products">;
 
@@ -20,7 +19,6 @@ export async function createProduct(shopId: string, data: ProductFormData) {
     .select("owner_id, slug")
     .eq("id", shopId)
     .single();
-
   if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
 
   const { data: product, error } = await supabase
@@ -60,9 +58,18 @@ export async function deleteProduct(productId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
+  const { data: product } = await supabase
+    .from("products")
+    .select("shop_id, shops(owner_id, slug)")
+    .eq("id", productId)
+    .single();
+  if (!product) return { error: "Not found" };
+  const shop = product.shops as { owner_id: string; slug: string } | null;
+  if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
+
   const { error } = await supabase.from("products").delete().eq("id", productId);
   if (error) return { error: error.message };
-  revalidatePath("/vendor");
+  revalidatePath(`/vendor/${shop.slug}/products`);
   return { success: true };
 }
 
@@ -74,6 +81,71 @@ export async function getShopProducts(shopId: string) {
     .eq("shop_id", shopId)
     .order("created_at", { ascending: false });
   return data ?? [];
+}
+
+export async function getShopProductsWithDetails(shopId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("products")
+    .select(
+      `*, 
+      product_categories(category_id),
+      product_variations(id, is_active, stock_quantity, price)`
+    )
+    .eq("shop_id", shopId)
+    .order("created_at", { ascending: false });
+  return data ?? [];
+}
+
+export async function bulkDeleteProducts(productIds: string[]) {
+  if (productIds.length === 0) return { success: true };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: products } = await supabase
+    .from("products")
+    .select("id, shop_id, shops(owner_id)")
+    .in("id", productIds);
+
+  const owned = (products ?? []).filter(
+    (p) => (p.shops as { owner_id: string } | null)?.owner_id === user.id
+  );
+  if (owned.length !== productIds.length) return { error: "Unauthorized for some products" };
+
+  const { error } = await supabase
+    .from("products")
+    .delete()
+    .in("id", productIds);
+  if (error) return { error: error.message };
+  revalidatePath("/vendor");
+  return { success: true };
+}
+
+export async function bulkUpdateProductStatus(productIds: string[], status: "draft" | "active" | "archived") {
+  if (productIds.length === 0) return { success: true };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: products } = await supabase
+    .from("products")
+    .select("id, shops(owner_id)")
+    .in("id", productIds);
+
+  const owned = (products ?? []).filter(
+    (p) => (p.shops as { owner_id: string } | null)?.owner_id === user.id
+  );
+  if (owned.length !== productIds.length) return { error: "Unauthorized for some products" };
+
+  const isActive = status === "active";
+  const { error } = await supabase
+    .from("products")
+    .update({ status, is_active: isActive })
+    .in("id", productIds);
+  if (error) return { error: error.message };
+  revalidatePath("/vendor");
+  return { success: true };
 }
 
 export async function getProductById(id: string) {
@@ -116,7 +188,6 @@ export async function getPublicProducts({
     .eq("is_active", true)
     .eq("list_on_marketplace", true);
 
-  // Apply filters
   if (category) req = req.eq("category", category);
   if (shopId) req = req.eq("shop_id", shopId);
   if (query) req = req.ilike("name", `%${query}%`);
@@ -124,7 +195,6 @@ export async function getPublicProducts({
   if (maxPrice !== undefined) req = req.lte("price", maxPrice);
   if (inStock) req = req.gt("stock", 0);
 
-  // Apply sorting
   switch (sort) {
     case "price-low-high":
       req = req.order("price", { ascending: true });
@@ -132,7 +202,6 @@ export async function getPublicProducts({
     case "price-high-low":
       req = req.order("price", { ascending: false });
       break;
-    case "newest":
     default:
       req = req.order("created_at", { ascending: false });
   }
@@ -143,12 +212,7 @@ export async function getPublicProducts({
   return (data ?? []).filter((p) => {
     const shop = p.shops as { status?: string } | null;
     if (shop?.status !== "active") return false;
-    
-    // Filter by condition
-    if (condition && condition.length > 0 && !condition.includes(p.condition)) {
-      return false;
-    }
-    
+    if (condition && condition.length > 0 && !condition.includes(p.condition)) return false;
     return true;
   });
 }
@@ -179,12 +243,10 @@ export async function getShopProductsForDirectAccess({
     .eq("shop_id", shopId)
     .eq("is_active", true);
 
-  // Apply filters
   if (minPrice !== undefined) req = req.gte("price", minPrice);
   if (maxPrice !== undefined) req = req.lte("price", maxPrice);
   if (inStock) req = req.gt("stock", 0);
 
-  // Apply sorting
   switch (sort) {
     case "price-low-high":
       req = req.order("price", { ascending: true });
@@ -192,7 +254,6 @@ export async function getShopProductsForDirectAccess({
     case "price-high-low":
       req = req.order("price", { ascending: false });
       break;
-    case "newest":
     default:
       req = req.order("created_at", { ascending: false });
   }
@@ -201,11 +262,7 @@ export async function getShopProductsForDirectAccess({
 
   const { data } = await req;
   return (data ?? []).filter((p) => {
-    // Filter by condition
-    if (condition && condition.length > 0 && !condition.includes(p.condition)) {
-      return false;
-    }
-    
+    if (condition && condition.length > 0 && !condition.includes(p.condition)) return false;
     return true;
   });
 }

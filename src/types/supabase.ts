@@ -1,3 +1,4 @@
+Initialising login role...
 export type Json =
   | string
   | number
@@ -39,6 +40,73 @@ export type Database = {
   }
   public: {
     Tables: {
+      attribute_items: {
+        Row: {
+          attribute_id: string
+          color_code: string | null
+          created_at: string
+          id: string
+          sort_order: number
+          value: string
+        }
+        Insert: {
+          attribute_id: string
+          color_code?: string | null
+          created_at?: string
+          id?: string
+          sort_order?: number
+          value: string
+        }
+        Update: {
+          attribute_id?: string
+          color_code?: string | null
+          created_at?: string
+          id?: string
+          sort_order?: number
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attribute_items_attribute_id_fkey"
+            columns: ["attribute_id"]
+            isOneToOne: false
+            referencedRelation: "attributes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attributes: {
+        Row: {
+          attribute_type: string
+          created_at: string
+          id: string
+          name: string
+          shop_id: string
+        }
+        Insert: {
+          attribute_type?: string
+          created_at?: string
+          id?: string
+          name: string
+          shop_id: string
+        }
+        Update: {
+          attribute_type?: string
+          created_at?: string
+          id?: string
+          name?: string
+          shop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attributes_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_proofs: {
         Row: {
           admin_notes: string | null
@@ -190,6 +258,51 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          parent_id: string | null
+          shop_id: string
+          slug: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          parent_id?: string | null
+          shop_id: string
+          slug: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          parent_id?: string | null
+          shop_id?: string
+          slug?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "categories_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
             referencedColumns: ["id"]
           },
         ]
@@ -542,6 +655,86 @@ export type Database = {
           },
         ]
       }
+      product_categories: {
+        Row: {
+          category_id: string
+          product_id: string
+        }
+        Insert: {
+          category_id: string
+          product_id: string
+        }
+        Update: {
+          category_id?: string
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_categories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_categories_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_variations: {
+        Row: {
+          attribute_combination: Json
+          created_at: string
+          id: string
+          image_url: string | null
+          is_active: boolean
+          price: number | null
+          product_id: string
+          sale_price: number | null
+          sku: string | null
+          stock_quantity: number
+          updated_at: string
+        }
+        Insert: {
+          attribute_combination?: Json
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          price?: number | null
+          product_id: string
+          sale_price?: number | null
+          sku?: string | null
+          stock_quantity?: number
+          updated_at?: string
+        }
+        Update: {
+          attribute_combination?: Json
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          price?: number | null
+          product_id?: string
+          sale_price?: number | null
+          sku?: string | null
+          stock_quantity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_variations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           attributes: Json
@@ -549,15 +742,23 @@ export type Database = {
           condition: string
           created_at: string
           description: string | null
+          gallery_images: string[]
           id: string
           image_urls: string[]
           is_active: boolean
           list_on_marketplace: boolean
+          main_image: string | null
           name: string
           payment_method_ids: string[]
           price: number
+          product_type: string
+          sale_end: string | null
+          sale_price: number | null
+          sale_start: string | null
           shop_id: string
+          sku: string | null
           slug: string
+          status: string
           stock: number
           track_inventory: boolean
           updated_at: string
@@ -569,15 +770,23 @@ export type Database = {
           condition?: string
           created_at?: string
           description?: string | null
+          gallery_images?: string[]
           id?: string
           image_urls?: string[]
           is_active?: boolean
           list_on_marketplace?: boolean
+          main_image?: string | null
           name: string
           payment_method_ids?: string[]
           price: number
+          product_type?: string
+          sale_end?: string | null
+          sale_price?: number | null
+          sale_start?: string | null
           shop_id: string
+          sku?: string | null
           slug: string
+          status?: string
           stock?: number
           track_inventory?: boolean
           updated_at?: string
@@ -589,15 +798,23 @@ export type Database = {
           condition?: string
           created_at?: string
           description?: string | null
+          gallery_images?: string[]
           id?: string
           image_urls?: string[]
           is_active?: boolean
           list_on_marketplace?: boolean
+          main_image?: string | null
           name?: string
           payment_method_ids?: string[]
           price?: number
+          product_type?: string
+          sale_end?: string | null
+          sale_price?: number | null
+          sale_start?: string | null
           shop_id?: string
+          sku?: string | null
           slug?: string
+          status?: string
           stock?: number
           track_inventory?: boolean
           updated_at?: string

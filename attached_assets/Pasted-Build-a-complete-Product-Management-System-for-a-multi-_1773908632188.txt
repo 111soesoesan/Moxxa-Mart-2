@@ -1,0 +1,380 @@
+Build a complete Product Management System for a multi vendor e commerce platform.
+
+IMPORTANT UI RULES:
+
+- The UI MUST use shadcn/ui components (sidebar, layout, forms, dialogs, tabs, etc.)
+- The sidebar uses a dropdown structure
+- "Products" is a DROPDOWN menu, NOT a standalone page
+- Do NOT create a separate "Products" page
+
+- Follow shadcn recommended patterns for sidebar navigation (including collapsible groups and nested items). Use appropriate components such as collapsible and submenu items correctly based on official guidance. Do not hardcode behavior—implement it in a scalable and reusable way.
+
+- All data tables must follow a table-based UX inspired by tablecn:
+  - Clean data grid layout
+  - Filtering, sorting, column control
+  - Bulk actions
+  - Consistent with other pages in the app
+
+---
+
+## 1. Sidebar Navigation (shadcn)
+
+Under "Products" (dropdown), create:
+
+- All Products
+- Add New Product
+- Attributes
+- Categories
+
+Each item routes to its own page.
+
+Ensure the dropdown behavior is implemented using shadcn recommended sidebar patterns (collapsible groups and submenu items), keeping consistency with the rest of the dashboard.
+
+---
+
+## 2. All Products Page (tablecn style)
+
+### Purpose
+Main product management interface.
+
+---
+
+### Table Columns
+
+- Product Name
+- Status (Draft, Active, Archived)
+- Type (Simple, Variable)
+- Price (single or range)
+- Stock Status (In Stock, Low Stock, Out of Stock)
+- Created Date
+
+---
+
+### Table Features
+
+Use a tablecn-inspired data table:
+
+- Search (name, SKU)
+- Filters:
+  - Status
+  - Type
+  - Stock
+- Sorting (all columns)
+- Pagination
+- Column visibility toggle
+
+---
+
+### Bulk Actions
+
+- Delete
+- Change status
+- Assign categories
+- Basic price update
+
+---
+
+### Behavior
+
+- Row click → navigate to Edit Product page
+- Use shadcn dropdown menus for row actions
+
+---
+
+## 3. Attributes Page
+
+### Purpose
+Reusable attribute system.
+
+---
+
+### Features
+
+- Create attributes (name, type)
+- Types:
+  - Select
+  - Color (with color picker)
+  - Text
+
+- Manage attribute items:
+  - Add, edit, delete
+  - Inline editing
+  - Color preview for color attributes
+
+---
+
+### UI
+
+- Table list of attributes
+- Click row → open attribute detail (items management)
+- Use shadcn dialogs or sheets for create/edit
+
+---
+
+## 4. Categories Page
+
+### Purpose
+Organize products.
+
+---
+
+### Features
+
+- Create, edit, delete categories
+- Parent category support (hierarchy)
+- Slug auto generation
+- Assign categories to products
+
+---
+
+### UI
+
+- Table or tree view
+- Parent selection dropdown
+- Inline editing
+- Use shadcn components for forms and dialogs
+
+---
+
+## 5. Add / Edit Product Page
+
+Use shadcn Tabs component.
+
+---
+
+### Tabs
+
+- General
+- Pricing
+- Inventory
+- Attributes (only for Variable)
+- Variations (only for Variable)
+- Advanced (future)
+
+---
+
+## 5.1 General Tab
+
+- Product name (Input)
+- Description (Textarea)
+
+### Product Media (IMPORTANT)
+
+- Main product image (single primary image)
+- Product gallery (multiple images)
+
+This gallery is shared for both simple and variable products.
+
+---
+
+- Category selector (multi-select)
+- Status (Select)
+- Slug (auto + editable)
+
+---
+
+## 5.2 Pricing Tab
+
+- Regular price
+- Sale price
+- Schedule (date picker)
+
+---
+
+## 5.3 Inventory Tab
+
+- SKU (unique)
+- Enable stock tracking (Switch)
+- Stock quantity
+- Stock status
+
+---
+
+## 5.4 Attributes Tab (Variable Product)
+
+- Select attributes (multi-select)
+- Select attribute items
+- Dynamic UI updates based on selection
+
+---
+
+## 5.5 Variations System (CRITICAL)
+
+---
+
+### Generation
+
+- Generate variations from selected attributes
+- Allow manual variation creation
+
+---
+
+### Variations Table (tablecn style)
+
+Columns:
+- Variation (attribute combination)
+- SKU
+- Price
+- Stock
+- Status
+
+---
+
+### Features
+
+- Inline editing
+- Row expansion or modal for detailed editing
+
+---
+
+### Variation Media (IMPORTANT)
+
+- Each variation has its own single image
+- This image represents that specific variant (e.g. Red version)
+
+Important rules:
+- Variations do NOT have their own gallery
+- There is only ONE shared product gallery at product level
+- Variation image is separate and used to override display when selected
+
+---
+
+## 5.6 Bulk Edit Variations (IMPORTANT)
+
+Inspired by WooCommerce.
+
+---
+
+### UI Behavior
+
+- Filter variations by attributes:
+  Example:
+  - Color = Red
+  - Size = XL
+
+- Show affected variations count
+
+---
+
+### Bulk Editable Fields
+
+- Price
+- Sale price
+- Stock status
+- SKU
+- Variation image (IMPORTANT)
+- Weight, dimensions (future ready)
+
+---
+
+### Interaction
+
+- Use shadcn dialog or sheet
+- Preview affected rows
+- Apply changes to all filtered variations
+
+---
+
+## 6. Data Model (High Level)
+
+Products
+- id
+- shop_id
+- name
+- description
+- type (simple, variable)
+- status
+- slug
+- main_image
+- gallery_images (array)
+
+Product Variations
+- id
+- product_id
+- attribute_combination (JSON)
+- SKU
+- price
+- stock_quantity
+- image (single variation image)
+
+Attributes
+- id
+- name
+- type
+
+Attribute Items
+- id
+- attribute_id
+- value
+- color_code
+
+Categories
+- id
+- name
+- parent_id
+- slug
+
+---
+
+## 7. Business Logic
+
+- Variable product price comes from variations
+- Cannot publish product without valid pricing
+- Inventory handled per variation
+- SKU must be unique per shop
+- Category supports hierarchy
+- Variation image overrides product image when selected
+- Product gallery remains shared across all variations
+
+---
+
+## 8. System Integration Updates (CRITICAL)
+
+After implementing this system, update all related logic across the application:
+
+### Inventory System
+- Ensure inventory is tracked per variation (not parent product)
+- Update stock deduction logic during checkout
+- Reflect stock status correctly in product tables and UI
+
+---
+
+### Customer Facing Product Page
+- When a user selects attributes (e.g. color, size):
+  - Update displayed image using variation image
+  - Update price based on selected variation
+  - Update stock availability dynamically
+
+- If no variation is selected:
+  - Show default product image
+  - Disable purchase or prompt selection
+
+---
+
+### Order System
+- Ensure orders store selected variation data
+- Include variation attributes in order items
+
+---
+
+### Search and Filtering
+- Ensure variable products are searchable by attributes
+- Prepare for future filtering by attributes (color, size, etc.)
+
+---
+
+### Data Consistency
+- Ensure no orphan variations
+- Ensure variation combinations are unique
+- Validate all required fields before activation
+
+---
+
+## 9. Constraints
+
+- MUST use shadcn components
+- Follow shadcn best practices for sidebar (collapsible, submenu, scalability)
+- MUST follow tablecn style for tables
+- Keep layout consistent with existing dashboard
+- Do NOT create unnecessary pages
+- Ensure scalability for future AI and inventory features
