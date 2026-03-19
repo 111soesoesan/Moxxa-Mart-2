@@ -5,7 +5,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useParams } from "next/navigation";
-import { getMyShops, updateShop, requestInspection } from "@/actions/shops";
+import { getMyShops, updateShop, requestInspection, deleteShop } from "@/actions/shops";
 import { uploadShopProfileImage, uploadShopBanner } from "@/lib/supabase/storage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Field, FieldLabel, FieldControl, FieldError, FieldDescription } from "@/components/ui/field";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { ClipboardCheck, Upload, ImageIcon, X } from "lucide-react";
+import { ClipboardCheck, Upload, ImageIcon, X, Trash2, TriangleAlert } from "lucide-react";
 import Image from "next/image";
 
 // --- Schemas per tab ---
@@ -91,11 +91,14 @@ export default function ShopSettingsPage() {
       )}
 
       <Tabs defaultValue="general">
-        <TabsList className="grid grid-cols-4 mb-6 w-full">
+        <TabsList className="grid grid-cols-5 mb-6 w-full">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="appearance">Appearance</TabsTrigger>
           <TabsTrigger value="promotions">Promotions</TabsTrigger>
           <TabsTrigger value="checkout">Checkout</TabsTrigger>
+          <TabsTrigger value="danger" className="text-destructive data-[state=active]:text-destructive">
+            Danger
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -112,6 +115,10 @@ export default function ShopSettingsPage() {
 
         <TabsContent value="checkout">
           <CheckoutTab shop={shop} onSaved={(updated) => setShop(updated)} />
+        </TabsContent>
+
+        <TabsContent value="danger">
+          <DangerTab shop={shop} />
         </TabsContent>
       </Tabs>
     </div>
@@ -561,6 +568,79 @@ function PromotionsTab({
         {isPending ? "Saving…" : "Save Promotion Settings"}
       </Button>
     </form>
+  );
+}
+
+// ─── Danger Tab ───────────────────────────────────────────────────────────────
+
+function DangerTab({ shop }: { shop: Shop }) {
+  const [confirmName, setConfirmName] = useState("");
+  const [isPending, startTransition] = useTransition();
+  const nameMatches = confirmName === shop.name;
+
+  const handleDelete = () => {
+    if (!nameMatches) return;
+    startTransition(async () => {
+      const result = await deleteShop(shop.id);
+      if (result?.error) toast.error(result.error);
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 space-y-3">
+        <div className="flex items-center gap-2 text-destructive">
+          <TriangleAlert className="h-4 w-4 shrink-0" />
+          <p className="font-semibold text-sm">This action is permanent and cannot be undone.</p>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Deleting your shop will permanently erase:
+        </p>
+        <ul className="text-sm text-muted-foreground list-disc list-inside space-y-0.5 ml-1">
+          <li>All products, categories, attributes, and variations</li>
+          <li>All orders and customer records</li>
+          <li>All blog posts, likes, and comments</li>
+          <li>All payment methods and billing history</li>
+          <li>All uploaded images and files in storage</li>
+        </ul>
+      </div>
+
+      <Card className="border-destructive/30">
+        <CardHeader>
+          <CardTitle className="text-base text-destructive">Delete Shop</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Field>
+            <FieldLabel>
+              Type <span className="font-semibold text-foreground">{shop.name}</span> to confirm
+            </FieldLabel>
+            <FieldControl>
+              <Input
+                value={confirmName}
+                onChange={(e) => setConfirmName(e.target.value)}
+                placeholder={shop.name}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </FieldControl>
+            <FieldDescription>
+              This must match your shop name exactly.
+            </FieldDescription>
+          </Field>
+
+          <Button
+            type="button"
+            variant="destructive"
+            className="w-full"
+            disabled={!nameMatches || isPending}
+            onClick={handleDelete}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            {isPending ? "Deleting shop…" : "Permanently Delete Shop"}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

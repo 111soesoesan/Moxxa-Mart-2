@@ -174,6 +174,69 @@ export async function searchShops(query: string, limit = 8) {
   return data ?? [];
 }
 
+export async function deleteShop(shopId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: shop } = await supabase
+    .from("shops")
+    .select("id, owner_id")
+    .eq("id", shopId)
+    .eq("owner_id", user.id)
+    .single();
+
+  if (!shop) return { error: "Shop not found or you do not own it." };
+
+  const service = await createServiceClient();
+
+  async function deleteStorageFolder(bucket: string, prefix: string) {
+    const { data: items } = await service.storage.from(bucket).list(prefix, { limit: 1000 });
+    if (!items || items.length === 0) return;
+    const filePaths: string[] = [];
+    const folderNames: string[] = [];
+    for (const item of items) {
+      if (item.id) {
+        filePaths.push(`${prefix}/${item.name}`);
+      } else {
+        folderNames.push(item.name);
+      }
+    }
+    if (filePaths.length > 0) {
+      await service.storage.from(bucket).remove(filePaths);
+    }
+    for (const folder of folderNames) {
+      await deleteStorageFolder(bucket, `${prefix}/${folder}`);
+    }
+  }
+
+  const [productsRes, ordersRes] = await Promise.all([
+    service.from("products").select("id").eq("shop_id", shopId),
+    service.from("orders").select("id").eq("shop_id", shopId),
+  ]);
+
+  const storageCleanup: Promise<void>[] = [
+    deleteStorageFolder("shop-assets", shopId),
+    deleteStorageFolder("billing-proofs", shopId),
+    deleteStorageFolder("blog-images", shopId),
+  ];
+
+  for (const product of productsRes.data ?? []) {
+    storageCleanup.push(deleteStorageFolder("product-images", `${shopId}/${product.id}`));
+  }
+  for (const order of ordersRes.data ?? []) {
+    storageCleanup.push(deleteStorageFolder("payment-proofs", order.id));
+  }
+
+  await Promise.allSettled(storageCleanup);
+
+  const { error } = await service.from("shops").delete().eq("id", shopId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/vendor");
+  redirect("/vendor");
+}
+
 export async function getShopsWithFilters({
   query,
   location,
