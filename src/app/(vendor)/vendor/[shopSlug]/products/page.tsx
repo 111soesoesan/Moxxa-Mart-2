@@ -187,7 +187,7 @@ export default function AllProductsPage() {
             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
               <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
               <DropdownMenuItem asChild><Link href={`/vendor/${shopSlug}/products/${p.id}/edit`}><Pencil className="mr-2 h-4 w-4" />Edit</Link></DropdownMenuItem>
               <DropdownMenuItem asChild><Link href={`/product/${p.id}`} target="_blank"><Eye className="mr-2 h-4 w-4" />View</Link></DropdownMenuItem>
               <DropdownMenuSeparator />

@@ -7,6 +7,7 @@ export type InventoryItem = {
   id: string;
   product_id: string;
   shop_id: string;
+  variation_id: string | null;
   stock_quantity: number;
   reserved_quantity: number;
   low_stock_threshold: number;
@@ -20,6 +21,14 @@ export type InventoryItem = {
     price: number;
     image_urls: string[] | null;
     track_inventory: boolean;
+    product_type: string;
+  } | null;
+  product_variations?: {
+    id: string;
+    attribute_combination: Record<string, string>;
+    sku: string | null;
+    price: number | null;
+    is_active: boolean;
   } | null;
 };
 
@@ -34,24 +43,26 @@ export type InventoryLog = {
   notes: string | null;
   created_by: string | null;
   created_at: string;
-  // joined
   productName?: string | null;
   productId?: string | null;
+  variationLabel?: string | null;
 };
 
 // ─── Read helpers ─────────────────────────────────────────────────────────────
 
 export async function getProductInventory(productId: string) {
   const supabase = await createClient();
-  const { data } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
     .from("inventory")
     .select("*")
     .eq("product_id", productId)
+    .is("variation_id", null)
     .single();
   return data;
 }
 
-export async function getShopInventory(shopId: string) {
+export async function getShopInventory(shopId: string): Promise<InventoryItem[]> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
@@ -66,14 +77,27 @@ export async function getShopInventory(shopId: string) {
 
   const { data } = await supabase
     .from("inventory")
-    .select("*, products(id, name, price, image_urls, track_inventory)")
+    .select(
+      "*, products(id, name, price, image_urls, track_inventory, product_type), product_variations(id, attribute_combination, sku, price, is_active)"
+    )
     .eq("shop_id", shopId)
     .order("created_at", { ascending: false });
 
-  return data ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return ((data ?? []) as any[]).map((item: any) => ({
+    ...item,
+    variation_id: item.variation_id ?? null,
+    product_variations: item.product_variations
+      ? {
+          ...item.product_variations,
+          attribute_combination:
+            (item.product_variations.attribute_combination ?? {}) as Record<string, string>,
+        }
+      : null,
+  })) as InventoryItem[];
 }
 
-export async function getShopAdjustmentLogs(shopId: string) {
+export async function getShopAdjustmentLogs(shopId: string): Promise<InventoryLog[]> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
@@ -86,14 +110,18 @@ export async function getShopAdjustmentLogs(shopId: string) {
 
   if (!shop || shop.owner_id !== user.id) return [];
 
-  const { data: inventories } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: inventories } = await (supabase as any)
     .from("inventory")
-    .select("id, product_id, products(id, name)")
+    .select(
+      "id, product_id, variation_id, products(id, name), product_variations(id, attribute_combination, sku)"
+    )
     .eq("shop_id", shopId);
 
   if (!inventories || inventories.length === 0) return [];
 
-  const inventoryIds = inventories.map((i) => i.id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const inventoryIds = (inventories as any[]).map((i: any) => i.id);
 
   const { data: logs } = await supabase
     .from("inventory_logs")
@@ -104,17 +132,31 @@ export async function getShopAdjustmentLogs(shopId: string) {
   if (!logs) return [];
 
   return logs.map((log) => {
-    const inv = inventories.find((i) => i.id === log.inventory_id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const inv = (inventories as any[]).find((i: any) => i.id === log.inventory_id);
     const prod = inv?.products as { id: string; name: string } | null;
+    const variation = inv?.product_variations as {
+      id: string;
+      attribute_combination: Record<string, string>;
+      sku: string | null;
+    } | null;
+
+    let variationLabel: string | null = null;
+    if (variation) {
+      const combo = (variation.attribute_combination ?? {}) as Record<string, string>;
+      variationLabel = Object.values(combo).join(" / ") || variation.sku || null;
+    }
+
     return {
       ...log,
       productName: prod?.name ?? null,
       productId: inv?.product_id ?? null,
+      variationLabel,
     } as InventoryLog;
   });
 }
 
-export async function getLowStockProducts(shopId: string) {
+export async function getLowStockProducts(shopId: string): Promise<InventoryItem[]> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
@@ -127,13 +169,16 @@ export async function getLowStockProducts(shopId: string) {
 
   if (!shop || shop.owner_id !== user.id) return [];
 
-  const { data } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
     .from("inventory")
-    .select("*, products(id, name, price, image_urls, track_inventory)")
+    .select(
+      "*, products(id, name, price, image_urls, track_inventory, product_type), product_variations(id, attribute_combination, sku, price, is_active)"
+    )
     .eq("shop_id", shopId)
     .order("stock_quantity", { ascending: true });
 
-  return (data ?? []).filter(
+  return ((data ?? []) as InventoryItem[]).filter(
     (item) =>
       item.products?.track_inventory !== false &&
       item.stock_quantity <= item.low_stock_threshold
@@ -231,8 +276,12 @@ const REASON_TO_CHANGE_TYPE: Record<string, string> = {
   other: "manual_update",
 };
 
+/**
+ * Create an inventory adjustment by inventory row ID.
+ * Works for both simple products and variation inventory rows.
+ */
 export async function createAdjustment(
-  productId: string,
+  inventoryId: string,
   quantityChange: number,
   reason: string,
   notes?: string
@@ -241,41 +290,43 @@ export async function createAdjustment(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
-  const { data: product } = await supabase
-    .from("products")
-    .select("shop_id, shops(owner_id, slug)")
-    .eq("id", productId)
-    .single();
-
-  if (!product) return { error: "Product not found" };
-  const shop = product.shops as { owner_id: string; slug: string } | null;
-  if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
-
-  const { data: inventory } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: inventory } = await (supabase as any)
     .from("inventory")
-    .select("id, stock_quantity")
-    .eq("product_id", productId)
+    .select("id, stock_quantity, product_id, variation_id, shop_id")
+    .eq("id", inventoryId)
     .single();
 
   if (!inventory) return { error: "Inventory record not found" };
 
-  const previousQty = inventory.stock_quantity;
-  // Allow going to 0 but clamp at 0 (no negative stock in DB)
+  const { data: shop } = await supabase
+    .from("shops")
+    .select("owner_id, slug")
+    .eq("id", inventory.shop_id)
+    .single();
+
+  if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
+
+  const previousQty = inventory.stock_quantity as number;
   const newQty = Math.max(0, previousQty + quantityChange);
 
-  const { error: invErr } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: invErr } = await (supabase as any)
     .from("inventory")
     .update({ stock_quantity: newQty })
     .eq("id", inventory.id);
   if (invErr) return { error: invErr.message };
 
-  await supabase.from("products").update({ stock: newQty }).eq("id", productId);
+  // For simple products, also update products.stock
+  if (!inventory.variation_id) {
+    await supabase.from("products").update({ stock: newQty }).eq("id", inventory.product_id);
+  }
 
   const changeType = REASON_TO_CHANGE_TYPE[reason] ?? "manual_update";
-  const logNotes = reason === "other" ? (notes ?? "Other") : [
-    reason,
-    notes,
-  ].filter(Boolean).join(": ");
+  const logNotes =
+    reason === "other"
+      ? (notes ?? "Other")
+      : [reason, notes].filter(Boolean).join(": ");
 
   const { error: logErr } = await supabase.from("inventory_logs").insert({
     inventory_id: inventory.id,
@@ -313,26 +364,30 @@ export async function deleteAdjustment(logId: string, shopId: string) {
 
   if (!log) return { error: "Log entry not found" };
 
-  // Restore the previous stock snapshot
   const restoreQty = log.previous_quantity ?? 0;
 
-  const { data: inventory } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: inventory } = await (supabase as any)
     .from("inventory")
-    .select("id, product_id")
+    .select("id, product_id, variation_id")
     .eq("id", log.inventory_id)
     .single();
 
   if (!inventory) return { error: "Inventory record not found" };
 
-  await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
     .from("inventory")
     .update({ stock_quantity: restoreQty })
     .eq("id", inventory.id);
 
-  await supabase
-    .from("products")
-    .update({ stock: restoreQty })
-    .eq("id", inventory.product_id);
+  // For simple products, also revert products.stock
+  if (!inventory.variation_id) {
+    await supabase
+      .from("products")
+      .update({ stock: restoreQty })
+      .eq("id", inventory.product_id);
+  }
 
   const { error: delErr } = await supabase
     .from("inventory_logs")
@@ -397,10 +452,12 @@ export async function setManualStockStatus(productId: string, inStock: boolean) 
     .eq("id", productId);
   if (prodErr) return { error: prodErr.message };
 
-  await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
     .from("inventory")
     .update({ stock_quantity: qty })
-    .eq("product_id", productId);
+    .eq("product_id", productId)
+    .is("variation_id", null);
 
   revalidatePath(`/vendor/${shop.slug}/inventory`);
   return { success: true };
@@ -418,10 +475,12 @@ export async function updateInventoryManual(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
-  const { data: inventory } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: inventory } = await (supabase as any)
     .from("inventory")
     .select("id, stock_quantity, shop_id")
     .eq("product_id", productId)
+    .is("variation_id", null)
     .single();
 
   if (!inventory) return { error: "Inventory record not found" };
@@ -483,7 +542,6 @@ export async function checkProductAvailability(productId: string, quantity: numb
     return { available: false, reason: "Product not available" };
   }
 
-  // When tracking is disabled: no quantity limit; manual in/out status via stock field
   if (!product.track_inventory) {
     if (product.stock <= 0) {
       return { available: false, reason: "Out of stock" };
@@ -529,7 +587,6 @@ export async function bulkCheckInventory(items: Array<{ productId: string; quant
       continue;
     }
 
-    // Untracked: no quantity limit, but respect manual in/out status
     if (!product.track_inventory) {
       if (product.stock <= 0) {
         issues.push({ productId: item.productId, issue: "Out of stock" });

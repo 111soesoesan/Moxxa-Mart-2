@@ -123,7 +123,7 @@ export function ProductForm({ mode, productId, shopId, shopSlug }: Props) {
   const [bulkSalePrice, setBulkSalePrice] = useState("");
   const [bulkStock, setBulkStock] = useState("");
   const [bulkSku, setBulkSku] = useState("");
-  const [bulkActive, setBulkActive] = useState<"" | "true" | "false">("");
+  const [bulkActive, setBulkActive] = useState<"__unchanged__" | "true" | "false">("__unchanged__");
 
   // ── Temp product id for new uploads ──
   const [tempId] = useState(() => productId ?? crypto.randomUUID());
@@ -282,12 +282,12 @@ export function ProductForm({ mode, productId, shopId, shopSlug }: Props) {
           ...(bulkSalePrice ? { sale_price: bulkSalePrice } : {}),
           ...(bulkStock ? { stock_quantity: Number(bulkStock) } : {}),
           ...(bulkSku ? { sku: bulkSku } : {}),
-          ...(bulkActive ? { is_active: bulkActive === "true" } : {}),
+          ...(bulkActive !== "__unchanged__" ? { is_active: bulkActive === "true" } : {}),
         };
       })
     );
     setBulkEditOpen(false);
-    setBulkPrice(""); setBulkSalePrice(""); setBulkStock(""); setBulkSku(""); setBulkActive(""); setBulkFilter({});
+    setBulkPrice(""); setBulkSalePrice(""); setBulkStock(""); setBulkSku(""); setBulkActive("__unchanged__"); setBulkFilter({});
     toast.success("Bulk edit applied");
   };
 
@@ -927,10 +927,10 @@ export function ProductForm({ mode, productId, shopId, shopSlug }: Props) {
                 </div>
                 <div className="flex items-center gap-2">
                   <Label className="w-24 text-xs shrink-0">Status</Label>
-                  <Select value={bulkActive} onValueChange={(v) => setBulkActive(v as "" | "true" | "false")}>
+                  <Select value={bulkActive} onValueChange={(v) => setBulkActive(v as "__unchanged__" | "true" | "false")}>
                     <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="unchanged" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">unchanged</SelectItem>
+                      <SelectItem value="__unchanged__">unchanged</SelectItem>
                       <SelectItem value="true">Active</SelectItem>
                       <SelectItem value="false">Inactive</SelectItem>
                     </SelectContent>
