@@ -181,7 +181,7 @@ export async function deleteShop(shopId: string) {
 
   const { data: shop } = await supabase
     .from("shops")
-    .select("id, owner_id")
+    .select("id, owner_id, slug")
     .eq("id", shopId)
     .eq("owner_id", user.id)
     .single();
@@ -222,7 +222,7 @@ export async function deleteShop(shopId: string) {
   ];
 
   for (const product of productsRes.data ?? []) {
-    storageCleanup.push(deleteStorageFolder("product-images", `${shopId}/${product.id}`));
+    storageCleanup.push(deleteStorageFolder("product-images", `${shop.slug}/${product.id}`));
   }
   for (const order of ordersRes.data ?? []) {
     storageCleanup.push(deleteStorageFolder("payment-proofs", order.id));
