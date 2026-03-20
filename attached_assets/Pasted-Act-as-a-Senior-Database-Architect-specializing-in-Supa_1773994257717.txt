@@ -1,0 +1,191 @@
+Act as a Senior Database Architect specializing in Supabase and PostgreSQL.
+
+Your task is to fully extract, normalize, and clean the current Supabase database architecture into a structured, version-controlled format that is AI-readable and safe for future development.
+
+---
+
+## CONTEXT
+
+The project uses Supabase with:
+- Supabase CLI
+- Migration-based schema management
+- Generated TypeScript types
+
+However:
+- The current architecture is NOT centralized
+- RLS policies, triggers, and storage rules are scattered or unclear
+- Some past migrations and triggers may have failed or partially applied
+- The system may contain inconsistencies between local migrations and remote database state
+
+---
+
+## OBJECTIVES
+
+You must:
+
+1. CONNECT to the current Supabase database (remote project)
+2. EXTRACT the FULL architecture, including:
+   - Tables (schema, columns, constraints)
+   - Relationships (foreign keys)
+   - Indexes
+   - RLS policies
+   - Triggers
+   - Functions (especially trigger functions)
+   - Storage buckets and access rules (if possible)
+
+3. DETECT inconsistencies:
+   - Broken or partially applied migrations
+   - Triggers referencing missing functions
+   - Policies referencing invalid roles or columns
+   - Duplicate or conflicting policies
+   - Drift between migration files and actual database
+
+4. NORMALIZE everything into clean SQL files
+
+---
+
+## TARGET FOLDER STRUCTURE
+
+Create the following structure:
+
+/supabase
+  /schemas
+    tables.sql
+    relationships.sql
+    indexes.sql
+    functions.sql
+  /policies
+    rls_policies.sql
+  /triggers
+    triggers.sql
+  /storage
+    buckets.sql
+    storage_policies.sql
+  /docs
+    architecture.md
+    rls_map.md
+    trigger_map.md
+    storage_map.md
+
+---
+
+## EXTRACTION RULES
+
+### Tables
+- Use CREATE TABLE statements
+- Include all columns, types, defaults
+- Include constraints (PK, FK, UNIQUE, CHECK)
+
+### Relationships
+- Explicitly list all foreign keys separately for clarity
+
+### Indexes
+- Extract all indexes, including implicit ones if relevant
+
+### Functions
+- Extract ALL custom SQL functions
+- Clearly identify which are used by triggers
+
+### Triggers
+- Extract trigger definitions
+- Map each trigger → function → table → event (INSERT/UPDATE/DELETE)
+
+### RLS Policies
+- Extract ALL policies per table
+- Include:
+  - Policy name
+  - Command (SELECT, INSERT, etc.)
+  - USING and WITH CHECK expressions
+- Group by table
+
+### Storage
+- List all buckets
+- Extract access policies if available
+
+---
+
+## CLEANUP + ERROR HANDLING
+
+You MUST handle broken or inconsistent state:
+
+### Migration Issues
+- Compare migration history vs actual schema
+- Identify unapplied or partially applied migrations
+- DO NOT blindly trust migration files
+
+### Broken Triggers
+- Detect triggers referencing missing functions
+- Either:
+  - Fix by linking to correct function
+  - OR mark clearly as "INVALID" in output
+
+### Policy Issues
+- Remove duplicates
+- Flag unsafe policies (e.g. USING true without auth)
+- Ensure consistency with auth.uid() usage
+
+### Output Strategy
+- If something is broken:
+  - DO NOT delete silently
+  - Add comments like:
+
+    -- WARNING: This trigger references a missing function
+    -- TODO: Fix or remove
+
+---
+
+## DOCUMENTATION REQUIREMENTS
+
+### architecture.md
+- High-level system overview
+- Core entities and relationships
+
+### rls_map.md
+- Table-by-table explanation of access control
+- Who can read/write and why
+
+### trigger_map.md
+- Each trigger explained in plain English
+- What event triggers it
+- What side effects it causes
+
+### storage_map.md
+- Bucket usage
+- Access model
+
+---
+
+## OUTPUT REQUIREMENTS
+
+- All SQL must be clean and formatted
+- Use comments extensively
+- Group related logic together
+- Ensure files are readable by both humans and AI agents
+
+---
+
+## FINAL STEP
+
+After extraction and cleanup:
+- Suggest a SAFE reset strategy:
+  - How to realign migrations with current database
+  - Whether to baseline a new initial migration
+  - How to prevent future drift
+
+DO NOT execute destructive actions.
+Only suggest them clearly.
+
+---
+
+## PRIORITY
+
+Accuracy > Completeness > Clean formatting
+
+If something is uncertain:
+- Keep it
+- Comment it
+- Do not assume
+
+---
+
+Begin execution.

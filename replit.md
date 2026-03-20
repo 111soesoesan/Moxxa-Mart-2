@@ -80,6 +80,31 @@ npm run db:push    # Push migrations to Supabase
 npm run db:types   # Regenerate TypeScript types from Supabase schema
 ```
 
+## Database Architecture Docs
+
+Extracted and normalized under `supabase/` (see also `supabase/migrations/` for the full change history):
+
+```
+supabase/
+  schemas/
+    tables.sql          # All CREATE TABLE definitions (final reconciled state)
+    relationships.sql   # FK map + ER diagram in comments
+    indexes.sql         # All indexes including partial unique indexes
+    functions.sql       # All custom SQL functions with explanations
+  policies/
+    rls_policies.sql    # All RLS policies grouped by table
+  triggers/
+    triggers.sql        # All triggers with DROP/CREATE guards
+  storage/
+    buckets.sql         # Storage bucket definitions
+    storage_policies.sql # Storage object access policies
+  docs/
+    architecture.md     # High-level overview, entity map, design decisions
+    rls_map.md          # Table-by-table access control reference
+    trigger_map.md      # Each trigger explained in plain English
+    storage_map.md      # Bucket usage, access model, security notes
+```
+
 ## Running on Replit
 
 The app runs on port 5000 (`npm run dev -p 5000 -H 0.0.0.0`). The "Start application" workflow handles this automatically.
