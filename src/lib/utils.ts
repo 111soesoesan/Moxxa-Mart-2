@@ -23,21 +23,23 @@ export function slugify(text: string): string {
 }
 
 export function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-PH", {
+  return new Intl.DateTimeFormat("en-PH", {
     year: "numeric",
     month: "short",
     day: "numeric",
-  });
+    timeZone: "UTC",
+  }).format(new Date(dateStr));
 }
 
 export function formatDateTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleString("en-PH", {
+  return new Intl.DateTimeFormat("en-PH", {
     year: "numeric",
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  });
+    timeZone: "UTC",
+  }).format(new Date(dateStr));
 }
 
 export function truncate(str: string, n: number): string {
