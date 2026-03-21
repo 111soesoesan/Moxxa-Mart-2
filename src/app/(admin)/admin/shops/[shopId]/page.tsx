@@ -16,7 +16,7 @@ export default async function AdminShopPreviewPage({ params }: Props) {
   if (!shop) notFound();
 
   const profile = shop.profiles as { full_name?: string; avatar_url?: string } | null;
-  const paymentInfo = shop.payment_info as Record<string, string> | null;
+  const methods = (shop.payment_methods ?? []) as { id: string; name: string; type: string; bank_name?: string; account_holder?: string; is_active?: boolean }[];
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -136,17 +136,23 @@ export default async function AdminShopPreviewPage({ params }: Props) {
         </div>
 
         <div className="space-y-4">
-          {/* Payment Info */}
-          {paymentInfo && Object.keys(paymentInfo).length > 0 && (
+          {/* Payment Methods */}
+          {methods.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Payment Info</CardTitle>
+                <CardTitle className="text-sm">Payment Methods</CardTitle>
               </CardHeader>
               <CardContent className="space-y-1.5">
-                {Object.entries(paymentInfo).map(([method, detail]) => (
-                  <div key={method} className="text-sm bg-muted rounded p-2">
-                    <span className="font-medium">{method}:</span>{" "}
-                    <span className="font-mono">{detail}</span>
+                {methods.map((pm) => (
+                  <div key={pm.id} className="text-sm bg-muted rounded p-2">
+                    <span className="font-medium">{pm.name}</span>{" "}
+                    <span className="text-muted-foreground text-xs">({pm.type})</span>
+                    {pm.bank_name && (
+                      <p className="text-xs text-muted-foreground mt-0.5">Bank: {pm.bank_name}</p>
+                    )}
+                    {pm.account_holder && (
+                      <p className="text-xs text-muted-foreground">Account: {pm.account_holder}</p>
+                    )}
                   </div>
                 ))}
               </CardContent>

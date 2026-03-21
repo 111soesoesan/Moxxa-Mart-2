@@ -38,7 +38,6 @@ CREATE TABLE IF NOT EXISTS public.shops (
   phone                    TEXT,
   location                 TEXT,
   delivery_policy          TEXT,
-  payment_info             JSONB       NOT NULL DEFAULT '{}',
   allow_guest_purchase     BOOLEAN     NOT NULL DEFAULT TRUE,
   status                   TEXT        NOT NULL DEFAULT 'draft'
                              CHECK (status IN ('draft', 'pending', 'active', 'rejected', 'suspended')),

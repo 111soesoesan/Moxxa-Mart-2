@@ -46,7 +46,7 @@ export default function ProductPage() {
 
   if (!product) return <div className="container mx-auto px-4 py-20 text-center text-muted-foreground">Product not found.</div>;
 
-  const shop = product.shops as { id: string; name: string; slug: string; logo_url?: string | null; allow_guest_purchase?: boolean; payment_info?: Record<string, string> } | null;
+  const shop = product.shops as { id: string; name: string; slug: string; logo_url?: string | null; allow_guest_purchase?: boolean } | null;
 
   const handleAddToCart = () => {
     if (!shop) return;
@@ -90,9 +90,8 @@ export default function ProductPage() {
                 <button
                   key={i}
                   onClick={() => setSelectedImage(i)}
-                  className={`relative w-16 h-16 shrink-0 rounded-lg overflow-hidden border-2 transition-colors ${
-                    selectedImage === i ? "border-primary" : "border-transparent"
-                  }`}
+                  className={`relative w-16 h-16 shrink-0 rounded-lg overflow-hidden border-2 transition-colors ${selectedImage === i ? "border-primary" : "border-transparent"
+                    }`}
                 >
                   <Image src={url} alt={`View ${i + 1}`} fill className="object-cover" sizes="64px" />
                 </button>

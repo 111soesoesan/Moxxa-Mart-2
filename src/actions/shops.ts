@@ -16,7 +16,6 @@ export type ShopFormData = {
   location?: string;
   delivery_policy?: string;
   shop_bio?: string;
-  payment_info?: Record<string, string>;
   allow_guest_purchase?: boolean;
   promotion_enabled?: boolean;
   promotion_title?: string;
@@ -127,7 +126,7 @@ export async function getPendingShops() {
   const supabase = await createServiceClient();
   const { data } = await supabase
     .from("shops")
-    .select("*, profiles(full_name, avatar_url)")
+    .select("*, profiles(full_name, avatar_url), payment_methods(id, name, type)")
     .eq("status", "pending")
     .order("inspection_requested_at", { ascending: true });
   return data ?? [];
@@ -276,7 +275,7 @@ export async function getShopsWithFilters({
   req = req.range(offset, offset + limit - 1);
 
   const { data } = await req;
-  
+
   // Client-side sorting for product count
   if (sort === "products-high-low" && data) {
     return (data ?? []).sort((a, b) => {

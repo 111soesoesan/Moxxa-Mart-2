@@ -152,7 +152,7 @@ export async function getProductById(id: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("products")
-    .select("*, shops(id, name, slug, logo_url, payment_info, allow_guest_purchase, status)")
+    .select("*, shops(id, name, slug, logo_url, allow_guest_purchase, status)")
     .eq("id", id)
     .single();
   return data;

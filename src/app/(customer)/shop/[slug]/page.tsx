@@ -1,11 +1,13 @@
 import { notFound } from "next/navigation";
 import { getShopBySlug } from "@/actions/shops";
 import { getPublicProducts } from "@/actions/products";
+import { getShopPaymentMethodsForCustomers } from "@/actions/paymentMethods";
 import { LatestProductsSection } from "@/components/shop/LatestProductsSection";
 import { PromotionalBanner } from "@/components/shop/PromotionalBanner";
 import { ShopBlogSection } from "@/components/shop/ShopBlogSection";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Phone } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { MapPin, Phone, Banknote, Landmark } from "lucide-react";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -15,7 +17,7 @@ export default async function ShopPage({ params }: Props) {
   if (!shop) notFound();
 
   const latestProducts = await getPublicProducts({ shopId: shop.id, limit: 8, sort: "newest" });
-  const paymentInfo = shop.payment_info as Record<string, string> | null;
+  const { data: paymentMethods } = await getShopPaymentMethodsForCustomers(shop.id);
 
   return (
     <div className="container mx-auto px-4">
@@ -73,15 +75,24 @@ export default async function ShopPage({ params }: Props) {
           )}
         </aside>
 
-        {paymentInfo && Object.keys(paymentInfo).length > 0 && (
+        {paymentMethods && paymentMethods.length > 0 && (
           <div className="space-y-4">
             <div>
               <h2 className="text-lg font-bold mb-3">Payment Methods</h2>
               <div className="space-y-2">
-                {Object.entries(paymentInfo).map(([method, detail]) => (
-                  <div key={method} className="text-sm">
-                    <span className="font-medium">{method}:</span>{" "}
-                    <span className="text-muted-foreground block text-xs mt-1">{detail}</span>
+                {paymentMethods.map((pm) => (
+                  <div key={pm.id} className="text-sm flex items-start gap-2">
+                    {pm.type === "cash" ? (
+                      <Banknote className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
+                    ) : (
+                      <Landmark className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
+                    )}
+                    <div>
+                      <span className="font-medium">{pm.name}</span>
+                      {pm.description && (
+                        <span className="text-muted-foreground block text-xs mt-0.5">{pm.description}</span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

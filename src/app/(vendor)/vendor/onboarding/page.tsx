@@ -19,7 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Field, FieldLabel, FieldControl, FieldError, FieldDescription, FieldGroup } from "@/components/ui/field";
 import { toast } from "sonner";
-import { Check, ChevronRight, Upload, ImageIcon } from "lucide-react";
+import { Check, ChevronRight, Upload, ImageIcon, Landmark } from "lucide-react";
 import Image from "next/image";
 
 const TOTAL_STEPS = 4;
@@ -36,8 +36,12 @@ const schema = z.object({
   delivery_policy: z.string().optional(),
   allow_guest_purchase: z.boolean(),
   setup_payment_methods: z.boolean().default(false),
-  payment_bank: z.string().optional(),
-  payment_wallet: z.string().optional(),
+  payment_method_name: z.string().optional(),
+  payment_method_description: z.string().optional(),
+  bank_name: z.string().optional(),
+  account_holder: z.string().optional(),
+  account_number: z.string().optional(),
+  proof_required: z.boolean().default(false),
 });
 
 type OnboardingSchema = z.input<typeof schema>;
@@ -66,8 +70,12 @@ export default function OnboardingPage() {
       delivery_policy: "",
       allow_guest_purchase: true,
       setup_payment_methods: false,
-      payment_bank: "",
-      payment_wallet: "",
+      payment_method_name: "",
+      payment_method_description: "",
+      bank_name: "",
+      account_holder: "",
+      account_number: "",
+      proof_required: false,
     },
   });
 
@@ -138,21 +146,17 @@ export default function OnboardingPage() {
       }
 
       // Optionally create additional payment methods
-      if (values.setup_payment_methods) {
-        if (values.payment_bank) {
-          await createPaymentMethod(shopId, {
-            type: "bank",
-            name: "Bank Transfer",
-            description: values.payment_bank,
-          });
-        }
-        if (values.payment_wallet) {
-          await createPaymentMethod(shopId, {
-            type: "bank",
-            name: "Mobile Wallet",
-            description: values.payment_wallet,
-          });
-        }
+      if (values.setup_payment_methods && values.payment_method_name && values.account_number) {
+        await createPaymentMethod(shopId, {
+          type: "bank",
+          name: values.payment_method_name,
+          description: values.payment_method_description || null,
+          bank_name: values.bank_name || null,
+          account_holder: values.account_holder || null,
+          account_number: values.account_number,
+          proof_required: values.proof_required,
+          is_active: true,
+        });
       }
 
       toast.success("Shop created! Now let's add your first product.");
@@ -173,13 +177,12 @@ export default function OnboardingPage() {
           {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((s) => (
             <div key={s} className="flex items-center flex-1">
               <div
-                className={`flex items-center justify-center w-10 h-10 rounded-full font-semibold text-sm ${
-                  s < step
-                    ? "bg-green-600 text-white"
-                    : s === step
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
-                }`}
+                className={`flex items-center justify-center w-10 h-10 rounded-full font-semibold text-sm ${s < step
+                  ? "bg-green-600 text-white"
+                  : s === step
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                  }`}
               >
                 {s < step ? <Check className="h-5 w-5" /> : s}
               </div>
@@ -414,27 +417,93 @@ export default function OnboardingPage() {
                   </div>
 
                   {setupPaymentMethods && (
-                    <FieldGroup>
-                      <Field error={errors.payment_bank?.message}>
-                        <FieldLabel>Bank Account</FieldLabel>
-                        <FieldControl>
-                          <Input
-                            placeholder="Bank name + Account number"
-                            {...form.register("payment_bank")}
-                          />
-                        </FieldControl>
-                        <FieldDescription>e.g. BDO 1234-5678-9012</FieldDescription>
-                        <FieldError />
-                      </Field>
+                    <div className="space-y-4 pt-2">
+                      <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg flex gap-3">
+                        <div className="bg-blue-600 p-2 rounded-md h-fit">
+                          <Landmark className="h-4 w-4 text-white" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-blue-900">Bank Transfer</p>
+                          <p className="text-xs text-blue-700">Add your bank details to receive payments via bank transfer.</p>
+                        </div>
+                      </div>
 
-                      <Field error={errors.payment_wallet?.message}>
-                        <FieldLabel>Mobile Wallet (GCash / Maya)</FieldLabel>
-                        <FieldControl>
-                          <Input placeholder="09XX XXX XXXX" {...form.register("payment_wallet")} />
-                        </FieldControl>
-                        <FieldError />
-                      </Field>
-                    </FieldGroup>
+                      <FieldGroup>
+                        <Field error={errors.payment_method_name?.message}>
+                          <FieldLabel required>Payment Method Name</FieldLabel>
+                          <FieldControl>
+                            <Input
+                              placeholder="e.g. BDO Bank, GCash, Maya"
+                              {...form.register("payment_method_name")}
+                            />
+                          </FieldControl>
+                          <FieldError />
+                        </Field>
+
+                        <Field error={errors.payment_method_description?.message}>
+                          <FieldLabel>Description</FieldLabel>
+                          <FieldControl>
+                            <Textarea
+                              placeholder="Brief instructions for the customer..."
+                              rows={2}
+                              {...form.register("payment_method_description")}
+                            />
+                          </FieldControl>
+                          <FieldError />
+                        </Field>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <Field error={errors.bank_name?.message}>
+                            <FieldLabel>Bank / Wallet Name</FieldLabel>
+                            <FieldControl>
+                              <Input
+                                placeholder="e.g. BDO, GCash"
+                                {...form.register("bank_name")}
+                              />
+                            </FieldControl>
+                            <FieldError />
+                          </Field>
+
+                          <Field error={errors.account_holder?.message}>
+                            <FieldLabel>Account Holder Name</FieldLabel>
+                            <FieldControl>
+                              <Input
+                                placeholder="Full name"
+                                {...form.register("account_holder")}
+                              />
+                            </FieldControl>
+                            <FieldError />
+                          </Field>
+                        </div>
+
+                        <Field error={errors.account_number?.message}>
+                          <FieldLabel required>Account Number / Phone</FieldLabel>
+                          <FieldControl>
+                            <Input
+                              placeholder="Account number or mobile number"
+                              {...form.register("account_number")}
+                            />
+                          </FieldControl>
+                          <FieldError />
+                        </Field>
+
+                        <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                          <div>
+                            <p className="font-medium text-sm">Require Payment Proof</p>
+                            <p className="text-xs text-muted-foreground">
+                              Customers must upload a screenshot of the transfer
+                            </p>
+                          </div>
+                          <Controller
+                            control={form.control}
+                            name="proof_required"
+                            render={({ field }) => (
+                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            )}
+                          />
+                        </div>
+                      </FieldGroup>
+                    </div>
                   )}
                 </CardContent>
               </Card>

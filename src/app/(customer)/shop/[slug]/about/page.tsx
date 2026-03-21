@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import { getShopBySlug } from "@/actions/shops";
+import { getShopPaymentMethodsForCustomers } from "@/actions/paymentMethods";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Phone } from "lucide-react";
+import { MapPin, Phone, Banknote, Landmark } from "lucide-react";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -11,7 +12,7 @@ export default async function ShopAboutPage({ params }: Props) {
   const shop = await getShopBySlug(slug);
   if (!shop) notFound();
 
-  const paymentInfo = shop.payment_info as Record<string, string> | null;
+  const { data: paymentMethods } = await getShopPaymentMethodsForCustomers(shop.id);
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -73,19 +74,25 @@ export default async function ShopAboutPage({ params }: Props) {
           </Card>
         )}
 
-        {paymentInfo && Object.keys(paymentInfo).length > 0 && (
+        {paymentMethods && paymentMethods.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Accepted Payment Methods</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {Object.entries(paymentInfo).map(([method, detail]) => (
-                  <div key={method} className="flex items-start gap-3">
-                    <div className="w-2 h-2 rounded-full bg-primary mt-2 shrink-0" />
+                {paymentMethods.map((pm) => (
+                  <div key={pm.id} className="flex items-start gap-3">
+                    {pm.type === "cash" ? (
+                      <Banknote className="h-5 w-5 shrink-0 text-muted-foreground mt-0.5" />
+                    ) : (
+                      <Landmark className="h-5 w-5 shrink-0 text-muted-foreground mt-0.5" />
+                    )}
                     <div>
-                      <p className="font-medium text-sm">{method}</p>
-                      <p className="text-muted-foreground text-sm">{detail}</p>
+                      <p className="font-medium text-sm">{pm.name}</p>
+                      {pm.description && (
+                        <p className="text-muted-foreground text-sm">{pm.description}</p>
+                      )}
                     </div>
                   </div>
                 ))}

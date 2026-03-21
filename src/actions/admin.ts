@@ -117,7 +117,7 @@ export async function getAdminShopWithProducts(shopId: string) {
   const [shopRes, productsRes] = await Promise.all([
     supabase
       .from("shops")
-      .select("*, profiles(full_name, avatar_url)")
+      .select("*, profiles(full_name, avatar_url), payment_methods(id, name, type, bank_name, account_holder, is_active)")
       .eq("id", shopId)
       .single(),
     supabase

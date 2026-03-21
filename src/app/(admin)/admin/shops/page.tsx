@@ -33,7 +33,7 @@ export default async function AdminShopsPage() {
         <div className="space-y-4">
           {shops.map((shop) => {
             const profile = shop.profiles as { full_name?: string; avatar_url?: string } | null;
-            const paymentInfo = shop.payment_info as Record<string, string> | null;
+            const methods = (shop.payment_methods ?? []) as { id: string; name: string; type: string }[];
 
             return (
               <Card key={shop.id}>
@@ -96,11 +96,13 @@ export default async function AdminShopsPage() {
                       <span className="font-medium">Policy: </span>{shop.delivery_policy}
                     </div>
                   )}
-                  {paymentInfo && Object.keys(paymentInfo).length > 0 && (
+                  {methods.length > 0 && (
                     <div className="text-xs bg-muted rounded p-2 space-y-0.5">
-                      <span className="font-medium">Payment Info:</span>
-                      {Object.entries(paymentInfo).map(([k, v]) => (
-                        <div key={k}>{k}: {v}</div>
+                      <span className="font-medium">Payment Methods:</span>
+                      {methods.map((pm) => (
+                        <div key={pm.id}>
+                          {pm.name} <span className="text-muted-foreground">({pm.type})</span>
+                        </div>
                       ))}
                     </div>
                   )}
