@@ -2,6 +2,8 @@
 
 Every table has Row Level Security enabled. The service role bypasses all policies (used for server-side actions and triggers). Policies below apply to `authenticated` and `anon` roles.
 
+> **Admin Access**: A universal `"admin_all"` policy applies to all tables. Any user whose `role = 'admin'` in `profiles` is granted full CRUD privileges via the `is_admin()` helper function.
+
 ---
 
 ## profiles

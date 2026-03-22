@@ -458,3 +458,26 @@ export async function validateCart(items: CartItem[]): Promise<CartValidationRes
 
   return { valid: issues.length === 0, issues };
 }
+
+export async function updateOrderPaymentStatus(orderId: string, paymentStatus: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  // We rely on RLS (which checks shop ownership or admin role)
+  // to authorize the update safely and transparently.
+  const { error, data } = await supabase
+    .from("orders")
+    .update({ payment_status: paymentStatus })
+    .eq("id", orderId)
+    .select("id, shops(slug)");
+
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { error: "Unauthorized or order not found" };
+
+  revalidatePath(`/vendor`);
+  const shopSlug = (data[0].shops as any)?.slug;
+  if (shopSlug) revalidatePath(`/vendor/${shopSlug}/orders`);
+  
+  return { success: true };
+}

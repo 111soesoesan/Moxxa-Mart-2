@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { updateOrderStatus, markOrderPaid, confirmCODOrder, markCODPaid } from "@/actions/orders";
+import { updateOrderStatus, markOrderPaid, confirmCODOrder, markCODPaid, updateOrderPaymentStatus } from "@/actions/orders";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -109,6 +109,24 @@ export function OrderStatusActions({
           </SelectContent>
         </Select>
       )}
+
+      {/* Payment Status Dropdown */}
+      <Select
+        defaultValue={paymentStatus}
+        onValueChange={(s) => run(() => updateOrderPaymentStatus(orderId, s))}
+        disabled={isPending}
+      >
+        <SelectTrigger className="h-7 text-xs w-40">
+          <SelectValue placeholder="Payment status" />
+        </SelectTrigger>
+        <SelectContent>
+          {["unpaid", "pending_verification", "paid", "refunded"].map((s) => (
+            <SelectItem key={s} value={s} className="text-xs capitalize">
+              {s.replace("_", " ")}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       {paymentProofUrl && (
         <a

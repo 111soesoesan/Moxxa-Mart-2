@@ -137,7 +137,7 @@ Each trigger is documented with: table, event, function called, and plain-Englis
 | **Function** | `deduct_inventory_on_confirmation()` |
 | **Security** | SECURITY DEFINER |
 
-**What it does:** Fires on every order UPDATE. Only takes effect when `status` transitions from any other state **to** `'confirmed'`.
+**What it does:** Fires on every order UPDATE. Only takes effect when `status` transitions from an inactive state (e.g., `pending`, `cancelled`) **to** an active deducted state (`confirmed`, `processing`, `shipped`, `delivered`).
 
 For each item in `items_snapshot`:
 1. Looks up `products.track_inventory` — skips if false.
@@ -159,7 +159,7 @@ For each item in `items_snapshot`:
 | **Function** | `restore_inventory_on_cancel()` |
 | **Security** | SECURITY DEFINER |
 
-**What it does:** Fires on every order UPDATE. Only takes effect when `status` transitions **to** `'cancelled'` and the previous status was one where inventory was already deducted (`confirmed`, `processing`, `shipped`, or `delivered`).
+**What it does:** Fires on every order UPDATE. Only takes effect when `status` transitions from an active deducted state (`confirmed`, `processing`, `shipped`, `delivered`) **to** an inactive state (e.g., `pending`, `cancelled`, `refunded`).
 
 For each item in `items_snapshot`:
 1. Checks `track_inventory` — skips if false.

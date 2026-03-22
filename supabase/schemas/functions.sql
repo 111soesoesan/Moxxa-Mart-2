@@ -133,8 +133,12 @@ DECLARE
   v_inv_id         UUID;
   v_current_stock  INTEGER;
 BEGIN
-  -- Guard: only fire on confirmed transition
-  IF OLD.status = 'confirmed' OR NEW.status <> 'confirmed' THEN
+  -- Guard: Only deduct if entering an active/deducted state from an inactive state
+  IF OLD.status IN ('confirmed', 'processing', 'shipped', 'delivered') THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.status NOT IN ('confirmed', 'processing', 'shipped', 'delivered') THEN
     RETURN NEW;
   END IF;
 
@@ -193,11 +197,13 @@ DECLARE
   v_current_stock  INTEGER;
   v_new_stock      INTEGER;
 BEGIN
-  IF OLD.status = 'cancelled' OR NEW.status <> 'cancelled' THEN
+  -- Guard: Only restore if escaping an active/deducted state
+  IF OLD.status NOT IN ('confirmed', 'processing', 'shipped', 'delivered') THEN
     RETURN NEW;
   END IF;
 
-  IF OLD.status NOT IN ('confirmed', 'processing', 'shipped', 'delivered') THEN
+  -- Guard: And entering an inactive/non-deducted state
+  IF NEW.status IN ('confirmed', 'processing', 'shipped', 'delivered') THEN
     RETURN NEW;
   END IF;
 
@@ -389,4 +395,16 @@ BEGIN
 
   RETURN TRUE;
 END;
+$$;
+
+
+-- ─── is_admin ───────────────────────────────────────────────
+-- Checks if the authenticated user has the 'admin' role in profiles.
+-- SECURITY DEFINER allows reading profiles even if RLS is somehow restrictive.
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER STABLE AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
 $$;
