@@ -13,6 +13,7 @@ export type Variation = {
   stock_quantity: number;
   image_url: string | null;
   is_active: boolean;
+  track_inventory: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -29,6 +30,7 @@ export async function getProductVariations(productId: string): Promise<Variation
     attribute_combination: (v.attribute_combination ?? {}) as Record<string, string>,
     price: v.price ? Number(v.price) : null,
     sale_price: v.sale_price ? Number(v.sale_price) : null,
+    track_inventory: v.track_inventory ?? true,
   }));
 }
 
@@ -43,6 +45,7 @@ export async function upsertVariations(
     stock_quantity?: number;
     image_url?: string | null;
     is_active?: boolean;
+    track_inventory?: boolean;
   }>
 ) {
   const supabase = await createClient();
@@ -68,6 +71,7 @@ export async function upsertVariations(
     stock_quantity: v.stock_quantity ?? 0,
     image_url: v.image_url ?? null,
     is_active: v.is_active ?? true,
+    track_inventory: v.track_inventory ?? true,
   }));
 
   const { data, error } = await supabase

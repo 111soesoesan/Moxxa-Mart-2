@@ -120,6 +120,8 @@ Orders support `user_id = NULL` for guest checkouts. Guest order data is accesse
 | `20260318100000` | Trigger: restore stock on order cancellation |
 | `20260319000000` | Product management: product_type, variations, categories, attributes |
 | `20260319120000` | Variation-level inventory: variation_id FK, partial indexes, sync trigger |
+| `20260322120000` | Order triggers: deduct/restore variation stock when `items_snapshot.variation_id` is set |
+| `20260323000000` | `product_variations.track_inventory`; `try_reserve_inventory_line` / `release_inventory_reservation_line`; confirm deducts reserved + stock; pending cancel releases reserved |
 
 ---
 
@@ -127,10 +129,6 @@ Orders support `user_id = NULL` for guest checkouts. Guest order data is accesse
 
 1. **`inventory_logs` has no INSERT policy** — inserts happen only via SECURITY DEFINER trigger functions or the service role. If direct client inserts are ever needed, an explicit policy must be added.
 
-2. **`deduct_inventory_on_confirmation` targets simple products only** — variable product stock is not automatically deducted on order confirmation. Vendors must adjust variation stock manually via the Inventory page.
+2. **Two `updated_at` functions** — `set_updated_at()` and `handle_updated_at()` are functionally identical. They can be consolidated in a future cleanup migration.
 
-3. **`items_snapshot` does not store `variation_id`** — the snapshot captures a `variant` string (attribute combo) but not the UUID of the variation. This means automatic variation stock deduction on order confirmation is not possible without a schema change.
-
-4. **Two `updated_at` functions** — `set_updated_at()` and `handle_updated_at()` are functionally identical. They can be consolidated in a future cleanup migration.
-
-5. **`blog-images` bucket** — created via the Supabase dashboard; no SQL migration policy exists for it. Policies should be added if programmatic uploads are implemented.
+3. **`blog-images` bucket** — created via the Supabase dashboard; no SQL migration policy exists for it. Policies should be added if programmatic uploads are implemented.

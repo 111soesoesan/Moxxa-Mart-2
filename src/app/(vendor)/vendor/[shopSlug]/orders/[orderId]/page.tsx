@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { OrderStatusActions } from "@/components/vendor/OrderStatusActions";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { formatCurrency, formatDateTime, formatVariant } from "@/lib/utils";
 import { ArrowLeft, User, MapPin, Phone, Mail, FileImage, Banknote, DollarSign, Wallet } from "lucide-react";
 
 type Props = { params: Promise<{ shopSlug: string; orderId: string }> };
@@ -188,7 +188,7 @@ export default async function VendorOrderDetailPage({ params }: Props) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">{item.name}</p>
                   {item.variant && (
-                    <p className="text-xs text-muted-foreground">Variant: {item.variant}</p>
+                    <p className="text-xs text-muted-foreground">Variant: {formatVariant(item.variant)}</p>
                   )}
                   <p className="text-xs text-muted-foreground">
                     {item.quantity} × {formatCurrency(item.price)}

@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { formatCurrency, formatDateTime, formatVariant } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Upload, CheckCircle } from "lucide-react";
@@ -70,7 +70,13 @@ export default function OrderDetailPage() {
 
   const shop = order.shops as { name: string; slug: string; phone?: string } | null;
   const paymentMethod = order.payment_methods as { name: string; type: string; bank_name?: string; account_holder?: string; account_number?: string; proof_required: boolean } | null;
-  const items = order.items_snapshot as Array<{ name: string; price: number; quantity: number; image_url?: string }>;
+  const items = order.items_snapshot as Array<{
+    name: string;
+    price: number;
+    quantity: number;
+    image_url?: string;
+    variant?: any;
+  }>;
   const customer = order.customer_snapshot as { full_name: string; phone: string; address: string; email?: string };
 
   return (
@@ -170,6 +176,9 @@ export default function OrderDetailPage() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium">{item.name}</p>
+                {item.variant && (
+                  <p className="text-xs text-muted-foreground">Variant: {formatVariant(item.variant)}</p>
+                )}
                 <p className="text-xs text-muted-foreground">Qty: {item.quantity} × {formatCurrency(item.price)}</p>
               </div>
               <p className="text-sm font-semibold">{formatCurrency(item.price * item.quantity)}</p>

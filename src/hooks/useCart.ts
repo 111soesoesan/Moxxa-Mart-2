@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type CartItem = {
@@ -10,6 +10,8 @@ export type CartItem = {
   price: number;
   quantity: number;
   image_url?: string;
+  /** Selected SKU row when product_type is variable */
+  variation_id?: string | null;
   /** Selected variant data (e.g. { size: "M", color: "red" }) */
   variant?: Record<string, string>;
 };
@@ -41,9 +43,11 @@ function saveCart(cart: Cart): void {
   localStorage.setItem(CART_KEY, JSON.stringify(cart));
 }
 
-function makeItemKey(item: CartItem): string {
+/** Stable React key / identity for a cart line */
+export function cartLineKey(item: Pick<CartItem, "product_id" | "variation_id" | "variant">): string {
+  const vid = item.variation_id != null && item.variation_id !== "" ? item.variation_id : "";
   const variantStr = item.variant ? JSON.stringify(item.variant) : "";
-  return `${item.product_id}::${variantStr}`;
+  return `${item.product_id}::${vid}::${variantStr}`;
 }
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
@@ -68,14 +72,14 @@ export function useCart() {
             ? EMPTY_CART
             : prev;
 
-        const key = makeItemKey(item);
-        const existing = base.items.find((i) => makeItemKey(i) === key);
+        const key = cartLineKey(item);
+        const existing = base.items.find((i) => cartLineKey(i) === key);
 
         const next: Cart = existing
           ? {
               ...base,
               items: base.items.map((i) =>
-                makeItemKey(i) === key
+                cartLineKey(i) === key
                   ? { ...i, quantity: i.quantity + item.quantity }
                   : i
               ),
@@ -94,20 +98,25 @@ export function useCart() {
 
   /** Update the quantity of an item (removes if qty <= 0). */
   const updateQuantity = useCallback(
-    (productId: string, quantity: number, variant?: Record<string, string>) => {
+    (
+      productId: string,
+      quantity: number,
+      opts?: { variant?: Record<string, string>; variation_id?: string | null }
+    ) => {
       setCart((prev) => {
-        const key = makeItemKey({
+        const key = cartLineKey({
           product_id: productId,
-          variant,
-        } as CartItem);
+          variant: opts?.variant,
+          variation_id: opts?.variation_id,
+        });
 
         const next: Cart = {
           ...prev,
           items:
             quantity <= 0
-              ? prev.items.filter((i) => makeItemKey(i) !== key)
+              ? prev.items.filter((i) => cartLineKey(i) !== key)
               : prev.items.map((i) =>
-                  makeItemKey(i) === key ? { ...i, quantity } : i
+                  cartLineKey(i) === key ? { ...i, quantity } : i
                 ),
         };
 
@@ -121,8 +130,8 @@ export function useCart() {
 
   /** Remove an item entirely. */
   const removeItem = useCallback(
-    (productId: string, variant?: Record<string, string>) => {
-      updateQuantity(productId, 0, variant);
+    (productId: string, opts?: { variant?: Record<string, string>; variation_id?: string | null }) => {
+      updateQuantity(productId, 0, opts);
     },
     [updateQuantity]
   );

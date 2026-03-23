@@ -140,13 +140,12 @@ Each trigger is documented with: table, event, function called, and plain-Englis
 **What it does:** Fires on every order UPDATE. Only takes effect when `status` transitions from an inactive state (e.g., `pending`, `cancelled`) **to** an active deducted state (`confirmed`, `processing`, `shipped`, `delivered`).
 
 For each item in `items_snapshot`:
-1. Looks up `products.track_inventory` — skips if false.
-2. Finds the `inventory` row for the product where `variation_id IS NULL` (simple products only).
-3. Deducts the ordered quantity (clamped at 0).
-4. Updates both `inventory.stock_quantity` and `products.stock`.
-5. Inserts a `inventory_logs` row with `change_type = 'sale'`.
+1. Respects `products.track_inventory` and, for variation lines, `product_variations.track_inventory` (skips lines that are not tracked).
+2. If `variation_id` is present (valid UUID in the JSON), finds `inventory` where `variation_id` matches and `product_id` matches; deducts `stock_quantity` and reduces `reserved_quantity` by the same qty (pending reservations from checkout); updates `inventory` only (`product_variations.stock_quantity` syncs via `sync_inventory_to_variation`).
+3. Otherwise finds the simple-product row (`variation_id IS NULL`), deducts stock and reserved, updates `inventory` and `products.stock`.
+4. Inserts `inventory_logs` with `change_type = 'sale'`.
 
-**Limitation:** Variable product variation stock is NOT automatically deducted. Vendors must adjust variation stock manually via the Inventory page.
+Pending orders reserve stock via `try_reserve_inventory_line()` (called from `createOrder`); confirmation clears both physical and reserved counts on the same row.
 
 ---
 
@@ -162,11 +161,9 @@ For each item in `items_snapshot`:
 **What it does:** Fires on every order UPDATE. Only takes effect when `status` transitions from an active deducted state (`confirmed`, `processing`, `shipped`, `delivered`) **to** an inactive state (e.g., `pending`, `cancelled`, `refunded`).
 
 For each item in `items_snapshot`:
-1. Checks `track_inventory` — skips if false.
-2. Finds the simple-product inventory row.
-3. Restores the quantity.
-4. Updates both `inventory.stock_quantity` and `products.stock`.
-5. Inserts an `inventory_logs` row with `change_type = 'cancel'`.
+1. If the order was **pending** and moves to `cancelled` or `refunded`, releases reservations only (`reserved_quantity` decreases) via `release_inventory_reservation_line()`, respecting per-variation `track_inventory`.
+2. If the order was **confirmed** (or processing/shipped/delivered) and moves to an inactive status, restores physical `stock_quantity` as before (variation rows do not update `products.stock`).
+3. Inserts `inventory_logs` with `change_type = 'cancel'` for physical restores.
 
 ---
 

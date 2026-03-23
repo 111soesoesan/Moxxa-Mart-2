@@ -3,7 +3,169 @@
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import type { CartItem } from "@/hooks/useCart";
+import { effectiveVariationUnitPrice } from "@/lib/product-pricing";
 import { getOrCreateCustomer, addCustomerActivity } from "./customers";
+
+type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>;
+
+type SnapshotRestoreItem = {
+  product_id: string;
+  quantity: number;
+  variation_id?: string | null;
+};
+
+function skuTracksInventory(
+  productTracks: boolean,
+  productType: string,
+  variationTrack: boolean | null | undefined
+): boolean {
+  if (!productTracks) return false;
+  if (productType === "variable") {
+    return variationTrack !== false;
+  }
+  return true;
+}
+
+/** Pending orders: release reservations (DELETE does not fire cancel trigger). */
+async function releasePendingReservationsForSnapshot(
+  svc: ServiceClient,
+  items: SnapshotRestoreItem[]
+) {
+  for (const item of items) {
+    const { data: product } = await svc
+      .from("products")
+      .select("track_inventory, product_type")
+      .eq("id", item.product_id)
+      .single();
+    if (!product) continue;
+    const vidRaw = typeof item.variation_id === "string" ? item.variation_id.trim() : "";
+    let varTrack: boolean | null | undefined = true;
+    if (vidRaw) {
+      const { data: pv } = await svc
+        .from("product_variations")
+        .select("track_inventory")
+        .eq("id", vidRaw)
+        .eq("product_id", item.product_id)
+        .maybeSingle();
+      varTrack = pv?.track_inventory ?? true;
+    }
+    if (!skuTracksInventory(!!product.track_inventory, product.product_type ?? "simple", varTrack)) continue;
+
+    await svc.rpc("release_inventory_reservation_line", {
+      p_product_id: item.product_id,
+      p_variation_id: vidRaw || null,
+      p_qty: item.quantity,
+    });
+  }
+}
+
+async function reserveInventoryForOrderItems(
+  svc: ServiceClient,
+  items: CartItem[]
+): Promise<string | undefined> {
+  for (const item of items) {
+    const { data: product } = await svc
+      .from("products")
+      .select("track_inventory, product_type")
+      .eq("id", item.product_id)
+      .single();
+    if (!product) return "Product not found";
+    const vidRaw = typeof item.variation_id === "string" ? item.variation_id.trim() : "";
+    let varTrack: boolean | null | undefined = true;
+    if (product.product_type === "variable") {
+      if (!vidRaw) return "Each variable product line must include a variation";
+      const { data: pv } = await svc
+        .from("product_variations")
+        .select("track_inventory")
+        .eq("id", vidRaw)
+        .eq("product_id", item.product_id)
+        .maybeSingle();
+      if (!pv) return "Invalid variation";
+      varTrack = pv.track_inventory ?? true;
+    }
+    if (!skuTracksInventory(!!product.track_inventory, product.product_type ?? "simple", varTrack)) continue;
+
+    const { data: ok, error } = await svc.rpc("try_reserve_inventory_line", {
+      p_product_id: item.product_id,
+      p_variation_id: vidRaw || null,
+      p_qty: item.quantity,
+    });
+    if (error) return error.message;
+    if (!ok) return `Not enough stock available for “${item.name}”`;
+  }
+  return undefined;
+}
+
+/** Restores one snapshot line (variation row or simple-product inventory + products.stock). */
+async function restoreInventoryForSnapshotItem(
+  svc: ServiceClient,
+  item: SnapshotRestoreItem,
+  referenceId: string
+) {
+  const { data: product } = await svc
+    .from("products")
+    .select("track_inventory, product_type")
+    .eq("id", item.product_id)
+    .single();
+  if (!product?.track_inventory) return;
+
+  const vidRaw = typeof item.variation_id === "string" ? item.variation_id.trim() : "";
+  if (vidRaw) {
+    const { data: pv } = await svc
+      .from("product_variations")
+      .select("track_inventory")
+      .eq("id", vidRaw)
+      .eq("product_id", item.product_id)
+      .maybeSingle();
+    if (pv && pv.track_inventory === false) return;
+
+    const { data: inv } = await svc
+      .from("inventory")
+      .select("id, stock_quantity")
+      .eq("variation_id", vidRaw)
+      .eq("product_id", item.product_id)
+      .maybeSingle();
+    if (!inv) return;
+    const prev = inv.stock_quantity;
+    const newQty = prev + item.quantity;
+    await svc
+      .from("inventory")
+      .update({ stock_quantity: newQty, updated_at: new Date().toISOString() })
+      .eq("id", inv.id);
+    await svc.from("inventory_logs").insert({
+      inventory_id: inv.id,
+      change_type: "cancel",
+      quantity_change: item.quantity,
+      previous_quantity: prev,
+      new_quantity: newQty,
+      reference_id: referenceId,
+    });
+    return;
+  }
+
+  const { data: inv } = await svc
+    .from("inventory")
+    .select("id, stock_quantity")
+    .eq("product_id", item.product_id)
+    .is("variation_id", null)
+    .maybeSingle();
+  if (!inv) return;
+  const prev = inv.stock_quantity;
+  const newQty = prev + item.quantity;
+  await svc
+    .from("inventory")
+    .update({ stock_quantity: newQty, updated_at: new Date().toISOString() })
+    .eq("id", inv.id);
+  await svc.from("products").update({ stock: newQty }).eq("id", item.product_id);
+  await svc.from("inventory_logs").insert({
+    inventory_id: inv.id,
+    change_type: "cancel",
+    quantity_change: item.quantity,
+    previous_quantity: prev,
+    new_quantity: newQty,
+    reference_id: referenceId,
+  });
+}
 
 export type GuestInfo = {
   full_name: string;
@@ -36,6 +198,7 @@ export async function createOrder(payload: CreateOrderPayload) {
     quantity: i.quantity,
     variant: i.variant ?? null,
     image_url: i.image_url ?? null,
+    variation_id: i.variation_id ?? null,
   }));
 
   // Get or create customer
@@ -68,6 +231,13 @@ export async function createOrder(payload: CreateOrderPayload) {
     .single();
 
   if (error) return { error: error.message };
+
+  const svc = await createServiceClient();
+  const reserveErr = await reserveInventoryForOrderItems(svc, payload.items);
+  if (reserveErr) {
+    await svc.from("orders").delete().eq("id", order.id);
+    return { error: reserveErr };
+  }
 
   // Log customer activity
   if (customerId) {
@@ -274,33 +444,21 @@ export async function deleteOrder(orderId: string) {
     .eq("id", orderId)
     .single();
 
-  const shop = order?.shops as { owner_id: string; slug: string } | null;
+  if (!order) return { error: "Order not found" };
+  const shop = order.shops as { owner_id: string; slug: string } | null;
   if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
 
   const svc = await createServiceClient();
 
-  // Restore inventory for confirmed/processing/shipped orders
+  const items = (order.items_snapshot ?? []) as SnapshotRestoreItem[];
+  if (order.status === "pending") {
+    await releasePendingReservationsForSnapshot(svc, items);
+  }
+
   const restoreStatuses = ["confirmed", "processing", "shipped", "delivered"];
-  if (order?.status && restoreStatuses.includes(order.status)) {
-    const items = (order.items_snapshot ?? []) as Array<{ product_id: string; quantity: number }>;
+  if (order.status && restoreStatuses.includes(order.status)) {
     for (const item of items) {
-      const { data: product } = await svc.from("products").select("track_inventory").eq("id", item.product_id).single();
-      if (!product?.track_inventory) continue;
-
-      const { data: inv } = await svc.from("inventory").select("id, stock_quantity").eq("product_id", item.product_id).single();
-      if (!inv) continue;
-
-      const newQty = inv.stock_quantity + item.quantity;
-      await svc.from("inventory").update({ stock_quantity: newQty, updated_at: new Date().toISOString() }).eq("id", inv.id);
-      await svc.from("products").update({ stock: newQty }).eq("id", item.product_id);
-      await svc.from("inventory_logs").insert({
-        inventory_id: inv.id,
-        change_type: "cancel",
-        quantity_change: item.quantity,
-        previous_quantity: inv.stock_quantity,
-        new_quantity: newQty,
-        reference_id: orderId,
-      });
+      await restoreInventoryForSnapshotItem(svc, item, orderId);
     }
   }
 
@@ -363,24 +521,13 @@ export async function bulkDeleteOrders(orderIds: string[]) {
   const restoreStatuses = ["confirmed", "processing", "shipped", "delivered"];
 
   for (const order of orders ?? []) {
-    if (!restoreStatuses.includes(order.status)) continue;
-    const items = (order.items_snapshot ?? []) as Array<{ product_id: string; quantity: number }>;
-    for (const item of items) {
-      const { data: product } = await svc.from("products").select("track_inventory").eq("id", item.product_id).single();
-      if (!product?.track_inventory) continue;
-      const { data: inv } = await svc.from("inventory").select("id, stock_quantity").eq("product_id", item.product_id).single();
-      if (!inv) continue;
-      const newQty = inv.stock_quantity + item.quantity;
-      await svc.from("inventory").update({ stock_quantity: newQty, updated_at: new Date().toISOString() }).eq("id", inv.id);
-      await svc.from("products").update({ stock: newQty }).eq("id", item.product_id);
-      await svc.from("inventory_logs").insert({
-        inventory_id: inv.id,
-        change_type: "cancel",
-        quantity_change: item.quantity,
-        previous_quantity: inv.stock_quantity,
-        new_quantity: newQty,
-        reference_id: order.id,
-      });
+    const items = (order.items_snapshot ?? []) as SnapshotRestoreItem[];
+    if (order.status === "pending") {
+      await releasePendingReservationsForSnapshot(svc, items);
+    } else if (restoreStatuses.includes(order.status)) {
+      for (const item of items) {
+        await restoreInventoryForSnapshotItem(svc, item, order.id);
+      }
     }
   }
 
@@ -416,13 +563,64 @@ export async function validateCart(items: CartItem[]): Promise<CartValidationRes
   if (!items.length) return { valid: true, issues: [] };
 
   const supabase = await createServiceClient();
-  const ids = items.map((i) => i.product_id);
+  const ids = [...new Set(items.map((i) => i.product_id))];
   const { data: products } = await supabase
     .from("products")
-    .select("id, name, price, stock, is_active, track_inventory")
+    .select("id, name, price, stock, is_active, track_inventory, product_type")
     .in("id", ids);
 
   const map = new Map((products ?? []).map((p) => [p.id, p]));
+
+  const variationIds = [
+    ...new Set(
+      items
+        .map((i) => (typeof i.variation_id === "string" ? i.variation_id.trim() : ""))
+        .filter(Boolean)
+    ),
+  ];
+  let variationRows: Array<{
+    id: string;
+    product_id: string;
+    is_active: boolean;
+    stock_quantity: number;
+    price: number | null;
+    sale_price: number | null;
+    track_inventory: boolean | null;
+  }> = [];
+  if (variationIds.length > 0) {
+    const { data } = await supabase
+      .from("product_variations")
+      .select("id, product_id, is_active, stock_quantity, price, sale_price, track_inventory")
+      .in("id", variationIds);
+    variationRows = (data ?? []) as typeof variationRows;
+  }
+
+  const varMap = new Map(variationRows.map((v) => [v.id, v]));
+
+  const simpleProductIds = [
+    ...new Set(items.filter((i) => !(typeof i.variation_id === "string" && i.variation_id.trim())).map((i) => i.product_id)),
+  ];
+  let simpleInvRows: Array<{ product_id: string; stock_quantity: number; reserved_quantity: number }> = [];
+  if (simpleProductIds.length > 0) {
+    const { data } = await supabase
+      .from("inventory")
+      .select("product_id, stock_quantity, reserved_quantity")
+      .in("product_id", simpleProductIds)
+      .is("variation_id", null);
+    simpleInvRows = data ?? [];
+  }
+  const simpleInvMap = new Map(simpleInvRows.map((r) => [r.product_id, r]));
+
+  let varInvRows: Array<{ variation_id: string; stock_quantity: number; reserved_quantity: number }> = [];
+  if (variationIds.length > 0) {
+    const { data } = await supabase
+      .from("inventory")
+      .select("variation_id, stock_quantity, reserved_quantity")
+      .in("variation_id", variationIds);
+    varInvRows = (data ?? []) as typeof varInvRows;
+  }
+  const varInvMap = new Map(varInvRows.map((r) => [r.variation_id, r]));
+
   const issues: CartValidationResult["issues"] = [];
 
   for (const item of items) {
@@ -431,18 +629,78 @@ export async function validateCart(items: CartItem[]): Promise<CartValidationRes
       issues.push({ product_id: item.product_id, name: item.name, type: "unavailable" });
       continue;
     }
-    if (live.stock === 0) {
+
+    const vid = typeof item.variation_id === "string" ? item.variation_id.trim() : "";
+    const isVariable = live.product_type === "variable";
+
+    if (isVariable) {
+      if (!vid) {
+        issues.push({ product_id: item.product_id, name: item.name, type: "unavailable" });
+        continue;
+      }
+      const pv = varMap.get(vid);
+      if (!pv || pv.product_id !== item.product_id) {
+        issues.push({ product_id: item.product_id, name: item.name, type: "unavailable" });
+        continue;
+      }
+      if (!pv.is_active) {
+        issues.push({ product_id: item.product_id, name: item.name, type: "unavailable" });
+        continue;
+      }
+      const tracks = skuTracksInventory(!!live.track_inventory, "variable", pv.track_inventory);
+      const invRow = varInvMap.get(vid);
+      const available = invRow
+        ? Math.max(0, invRow.stock_quantity - (invRow.reserved_quantity ?? 0))
+        : Math.max(0, pv.stock_quantity);
+
+      if (tracks && available === 0) {
+        issues.push({ product_id: item.product_id, name: item.name, type: "out_of_stock" });
+        continue;
+      }
+      if (tracks && available < item.quantity) {
+        issues.push({
+          product_id: item.product_id,
+          name: item.name,
+          type: "insufficient_stock",
+          requestedQty: item.quantity,
+          availableStock: available,
+        });
+        continue;
+      }
+      const unit = effectiveVariationUnitPrice(pv);
+      if (Math.abs(unit - item.price) > 0.01) {
+        issues.push({
+          product_id: item.product_id,
+          name: item.name,
+          type: "price_changed",
+          oldPrice: item.price,
+          newPrice: unit,
+        });
+      }
+      continue;
+    }
+
+    if (vid) {
+      issues.push({ product_id: item.product_id, name: item.name, type: "unavailable" });
+      continue;
+    }
+
+    const inv = simpleInvMap.get(item.product_id);
+    const available = inv
+      ? Math.max(0, inv.stock_quantity - (inv.reserved_quantity ?? 0))
+      : Math.max(0, live.stock);
+
+    if (live.track_inventory && available === 0) {
       issues.push({ product_id: item.product_id, name: item.name, type: "out_of_stock" });
       continue;
     }
-    // For tracked products only: enforce quantity limit
-    if (live.track_inventory && live.stock < item.quantity) {
+    if (live.track_inventory && available < item.quantity) {
       issues.push({
         product_id: item.product_id,
         name: item.name,
         type: "insufficient_stock",
         requestedQty: item.quantity,
-        availableStock: live.stock,
+        availableStock: available,
       });
     }
     if (Math.abs(live.price - item.price) > 0.01) {
@@ -476,7 +734,7 @@ export async function updateOrderPaymentStatus(orderId: string, paymentStatus: s
   if (!data || data.length === 0) return { error: "Unauthorized or order not found" };
 
   revalidatePath(`/vendor`);
-  const shopSlug = (data[0].shops as any)?.slug;
+  const shopSlug = (data[0].shops as { slug?: string } | null)?.slug;
   if (shopSlug) revalidatePath(`/vendor/${shopSlug}/orders`);
   
   return { success: true };

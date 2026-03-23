@@ -331,6 +331,7 @@ CREATE TABLE IF NOT EXISTS public.product_variations (
   stock_quantity        INTEGER       NOT NULL DEFAULT 0,
   image_url             TEXT,
   is_active             BOOLEAN       NOT NULL DEFAULT TRUE,
+  track_inventory       BOOLEAN       NOT NULL DEFAULT TRUE,
   created_at            TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   updated_at            TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );

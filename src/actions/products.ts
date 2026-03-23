@@ -2,12 +2,23 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import {
+  type CatalogProductBase,
+  enrichCatalogProduct,
+} from "@/lib/product-pricing";
 import type { TablesInsert, TablesUpdate } from "@/types/supabase";
 
 type ProductInsert = TablesInsert<"products">;
 type ProductUpdate = TablesUpdate<"products">;
 
 export type ProductFormData = Omit<ProductInsert, "shop_id">;
+
+
+const CATALOG_VARIATION_SELECT =
+  "id, is_active, stock_quantity, price, sale_price, track_inventory";
+
+const PDP_VARIATION_SELECT =
+  "id, attribute_combination, price, sale_price, stock_quantity, image_url, is_active, track_inventory, inventory(stock_quantity, reserved_quantity)";
 
 export async function createProduct(shopId: string, data: ProductFormData) {
   const supabase = await createClient();
@@ -152,7 +163,9 @@ export async function getProductById(id: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("products")
-    .select("*, shops(id, name, slug, logo_url, allow_guest_purchase, status)")
+    .select(
+      `*, shops(id, name, slug, logo_url, allow_guest_purchase, status), product_variations(${PDP_VARIATION_SELECT})`
+    )
     .eq("id", id)
     .single();
   return data;
@@ -184,16 +197,14 @@ export async function getPublicProducts({
   const supabase = await createClient();
   let req = supabase
     .from("products")
-    .select("*, shops(id, name, slug, logo_url, status)")
+    .select(`*, shops(id, name, slug, logo_url, status), product_variations(${CATALOG_VARIATION_SELECT})`)
     .eq("is_active", true)
     .eq("list_on_marketplace", true);
 
   if (category) req = req.eq("category", category);
   if (shopId) req = req.eq("shop_id", shopId);
   if (query) req = req.ilike("name", `%${query}%`);
-  if (minPrice !== undefined) req = req.gte("price", minPrice);
-  if (maxPrice !== undefined) req = req.lte("price", maxPrice);
-  if (inStock) req = req.gt("stock", 0);
+  // minPrice / maxPrice / inStock: applied after enrich — parent price/stock is 0 for variable products
 
   switch (sort) {
     case "price-low-high":
@@ -209,12 +220,32 @@ export async function getPublicProducts({
   req = req.range(offset, offset + limit - 1);
 
   const { data } = await req;
-  return (data ?? []).filter((p) => {
+  const base = (data ?? []).filter((p) => {
     const shop = p.shops as { status?: string } | null;
     if (shop?.status !== "active") return false;
     if (condition && condition.length > 0 && !condition.includes(p.condition)) return false;
     return true;
   });
+
+  let enriched = base.map((p) => enrichCatalogProduct(p as CatalogProductBase));
+
+  if (minPrice !== undefined) {
+    enriched = enriched.filter((p) => p.display_price >= minPrice!);
+  }
+  if (maxPrice !== undefined) {
+    enriched = enriched.filter((p) => p.display_price <= maxPrice!);
+  }
+  if (inStock) {
+    enriched = enriched.filter((p) => p.display_in_stock);
+  }
+
+  if (sort === "price-low-high") {
+    enriched.sort((a, b) => a.display_price - b.display_price);
+  } else if (sort === "price-high-low") {
+    enriched.sort((a, b) => b.display_price - a.display_price);
+  }
+
+  return enriched;
 }
 
 export async function getShopProductsForDirectAccess({
@@ -239,13 +270,9 @@ export async function getShopProductsForDirectAccess({
   const supabase = await createClient();
   let req = supabase
     .from("products")
-    .select("*, shops(id, name, slug, logo_url, status)")
+    .select(`*, shops(id, name, slug, logo_url, status), product_variations(${CATALOG_VARIATION_SELECT})`)
     .eq("shop_id", shopId)
     .eq("is_active", true);
-
-  if (minPrice !== undefined) req = req.gte("price", minPrice);
-  if (maxPrice !== undefined) req = req.lte("price", maxPrice);
-  if (inStock) req = req.gt("stock", 0);
 
   switch (sort) {
     case "price-low-high":
@@ -261,10 +288,30 @@ export async function getShopProductsForDirectAccess({
   req = req.range(offset, offset + limit - 1);
 
   const { data } = await req;
-  return (data ?? []).filter((p) => {
+  const base = (data ?? []).filter((p) => {
     if (condition && condition.length > 0 && !condition.includes(p.condition)) return false;
     return true;
   });
+
+  let enriched = base.map((p) => enrichCatalogProduct(p as CatalogProductBase));
+
+  if (minPrice !== undefined) {
+    enriched = enriched.filter((p) => p.display_price >= minPrice!);
+  }
+  if (maxPrice !== undefined) {
+    enriched = enriched.filter((p) => p.display_price <= maxPrice!);
+  }
+  if (inStock) {
+    enriched = enriched.filter((p) => p.display_in_stock);
+  }
+
+  if (sort === "price-low-high") {
+    enriched.sort((a, b) => a.display_price - b.display_price);
+  } else if (sort === "price-high-low") {
+    enriched.sort((a, b) => b.display_price - a.display_price);
+  }
+
+  return enriched;
 }
 
 export async function getTotalProductCount() {

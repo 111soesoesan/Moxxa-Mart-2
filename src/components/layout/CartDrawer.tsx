@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCartContext } from "@/context/CartContext";
+import { cartLineKey } from "@/hooks/useCart";
 import { formatCurrency } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
@@ -29,8 +30,8 @@ export function CartDrawer({ open, onClose }: Props) {
           <>
             <ScrollArea className="flex-1 -mx-6 px-6">
               <div className="space-y-4 py-2">
-                {cart.items.map((item, i) => (
-                  <div key={i} className="flex gap-3">
+                {cart.items.map((item) => (
+                  <div key={cartLineKey(item)} className="flex gap-3">
                     <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-muted shrink-0">
                       {item.image_url ? (
                         <Image src={item.image_url} alt={item.name} fill className="object-cover" sizes="64px" />
@@ -48,16 +49,31 @@ export function CartDrawer({ open, onClose }: Props) {
                       <p className="text-sm font-semibold text-primary">{formatCurrency(item.price)}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <button
-                          onClick={() => updateQuantity(item.product_id, item.quantity - 1, item.variant)}
+                          onClick={() =>
+                            updateQuantity(item.product_id, item.quantity - 1, {
+                              variant: item.variant,
+                              variation_id: item.variation_id,
+                            })
+                          }
                           className="w-6 h-6 rounded border text-sm hover:bg-muted"
                         >−</button>
                         <span className="text-sm w-6 text-center">{item.quantity}</span>
                         <button
-                          onClick={() => updateQuantity(item.product_id, item.quantity + 1, item.variant)}
+                          onClick={() =>
+                            updateQuantity(item.product_id, item.quantity + 1, {
+                              variant: item.variant,
+                              variation_id: item.variation_id,
+                            })
+                          }
                           className="w-6 h-6 rounded border text-sm hover:bg-muted"
                         >+</button>
                         <button
-                          onClick={() => removeItem(item.product_id, item.variant)}
+                          onClick={() =>
+                            removeItem(item.product_id, {
+                              variant: item.variant,
+                              variation_id: item.variation_id,
+                            })
+                          }
                           className="ml-auto text-xs text-destructive hover:underline"
                         >Remove</button>
                       </div>

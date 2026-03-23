@@ -45,3 +45,15 @@ export function formatDateTime(dateStr: string): string {
 export function truncate(str: string, n: number): string {
   return str.length > n ? str.slice(0, n - 1) + "…" : str;
 }
+
+/** Formats a variant string or object (e.g. { Color: "Red", Size: "XL" } -> "Color: Red, Size: XL") */
+export function formatVariant(variant: any): string {
+  if (!variant) return "";
+  if (typeof variant === "string") return variant;
+  if (typeof variant === "object") {
+    return Object.entries(variant)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(", ");
+  }
+  return String(variant);
+}

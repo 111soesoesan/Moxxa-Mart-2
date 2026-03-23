@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       attribute_items: {
@@ -706,6 +681,7 @@ export type Database = {
           sale_price: number | null
           sku: string | null
           stock_quantity: number
+          track_inventory: boolean
           updated_at: string
         }
         Insert: {
@@ -719,6 +695,7 @@ export type Database = {
           sale_price?: number | null
           sku?: string | null
           stock_quantity?: number
+          track_inventory?: boolean
           updated_at?: string
         }
         Update: {
@@ -732,6 +709,7 @@ export type Database = {
           sale_price?: number | null
           sku?: string | null
           stock_quantity?: number
+          track_inventory?: boolean
           updated_at?: string
         }
         Relationships: [
@@ -1020,6 +998,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      try_reserve_inventory_line: {
+        Args: {
+          p_product_id: string
+          p_variation_id: string | null
+          p_qty: number
+        }
+        Returns: boolean
+      }
+      release_inventory_reservation_line: {
+        Args: {
+          p_product_id: string
+          p_variation_id: string | null
+          p_qty: number
+        }
+        Returns: null
+      }
       is_admin: { Args: never; Returns: boolean }
       manual_inventory_update: {
         Args: {
@@ -1181,9 +1175,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },

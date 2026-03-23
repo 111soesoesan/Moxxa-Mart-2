@@ -6,7 +6,7 @@ import Image from "next/image";
 import { createProduct, updateProduct } from "@/actions/products";
 import { getShopCategories, setProductCategories, getProductCategories, type Category } from "@/actions/categories";
 import { getShopAttributes, type Attribute } from "@/actions/attributes";
-import { getProductVariations, upsertVariations, deleteVariationsByProduct, type Variation } from "@/actions/variations";
+import { getProductVariations, upsertVariations, deleteVariationsByProduct } from "@/actions/variations";
 import { getShopProducts } from "@/actions/products";
 import { getShopPaymentMethods } from "@/actions/paymentMethods";
 import { uploadProductImage } from "@/lib/supabase/storage";
@@ -48,6 +48,7 @@ type LocalVariation = {
   stock_quantity: number;
   image_url: string | null;
   is_active: boolean;
+  track_inventory: boolean;
 };
 
 type SelectedAttribute = {
@@ -182,6 +183,7 @@ export function ProductForm({ mode, productId, shopId, shopSlug }: Props) {
           stock_quantity: v.stock_quantity,
           image_url: v.image_url,
           is_active: v.is_active,
+          track_inventory: v.track_inventory ?? true,
         })));
       }
     }
@@ -251,6 +253,7 @@ export function ProductForm({ mode, productId, shopId, shopSlug }: Props) {
         stock_quantity: 0,
         image_url: null,
         is_active: true,
+        track_inventory: true,
       };
     });
 
@@ -363,6 +366,7 @@ export function ProductForm({ mode, productId, shopId, shopSlug }: Props) {
             stock_quantity: v.stock_quantity,
             image_url: v.image_url,
             is_active: v.is_active,
+            track_inventory: v.track_inventory,
           }))
         );
       } else if (productType === "simple" && productId) {
@@ -691,6 +695,7 @@ export function ProductForm({ mode, productId, shopId, shopSlug }: Props) {
                           <th className="text-left p-3 font-medium text-muted-foreground">SKU</th>
                           <th className="text-left p-3 font-medium text-muted-foreground">Price (₱)</th>
                           <th className="text-left p-3 font-medium text-muted-foreground">Stock</th>
+                          <th className="text-left p-3 font-medium text-muted-foreground">Track</th>
                           <th className="text-left p-3 font-medium text-muted-foreground">Image</th>
                           <th className="text-left p-3 font-medium text-muted-foreground">Active</th>
                           <th className="w-10 p-3" />
@@ -728,6 +733,12 @@ export function ProductForm({ mode, productId, shopId, shopSlug }: Props) {
                                 value={v.stock_quantity}
                                 onChange={(e) => updateVariation(v._key, "stock_quantity", Number(e.target.value))}
                                 className="h-8 text-xs"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <Switch
+                                checked={v.track_inventory}
+                                onCheckedChange={(c) => updateVariation(v._key, "track_inventory", c)}
                               />
                             </td>
                             <td className="p-2">
@@ -785,6 +796,7 @@ export function ProductForm({ mode, productId, shopId, shopSlug }: Props) {
                     _key: Math.random().toString(36).slice(2),
                     attribute_combination: {},
                     sku: "", price: "", sale_price: "", stock_quantity: 0, image_url: null, is_active: true,
+                    track_inventory: true,
                   }])}
                 >
                   <Plus className="mr-2 h-4 w-4" />Add Variation Manually
