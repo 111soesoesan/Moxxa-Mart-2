@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import {
   getShopChannels,
   upsertChannelSettings,
+  testChannelConnection,
   type MessagingChannel,
   type MessagingPlatform,
 } from "@/actions/messaging";
@@ -13,39 +14,35 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Loader2, Copy, ExternalLink } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Zap } from "lucide-react";
 
 type Props = {
   shopId: string;
   shopSlug: string;
 };
 
-const PLATFORMS: { key: MessagingPlatform; label: string; description: string; color: string }[] = [
+const PLATFORMS: { key: MessagingPlatform; label: string; description: string; colorClass: string }[] = [
   {
     key: "telegram",
     label: "Telegram Bot",
-    description: "Connect a Telegram bot to receive and reply to customer messages directly from your inbox.",
-    color: "text-sky-600",
+    description: "Paste your bot token below. When you enable and save, the webhook is registered automatically — no manual setup needed.",
+    colorClass: "text-sky-600",
   },
   {
     key: "viber",
     label: "Viber Bot",
-    description: "Connect a Viber business bot to handle customer enquiries from Viber users.",
-    color: "text-violet-600",
+    description: "Paste your Viber auth token below. When you enable and save, the webhook is registered with Viber automatically.",
+    colorClass: "text-violet-600",
   },
   {
     key: "webchat",
     label: "Web Chat Widget",
-    description: "Embed a live chat widget on your storefront so customers can message you directly.",
-    color: "text-blue-600",
+    description: "Toggle this on to make the chat bubble appear on your public storefront. Customers can message you directly from any product page.",
+    colorClass: "text-blue-600",
   },
 ];
-
-function getWebhookUrl(platform: MessagingPlatform, channelId: string): string {
-  const base = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  return `${base}/functions/v1/uma-webhook?platform=${platform}&channel_id=${channelId}`;
-}
 
 function TelegramForm({
   channel,
@@ -56,42 +53,49 @@ function TelegramForm({
   shopId: string;
   onSave: () => void;
 }) {
-  const [botToken, setBotToken] = useState(
-    (channel?.config as Record<string, string>)?.bot_token ?? ""
-  );
+  const config = channel?.config as Record<string, string> | undefined;
+  const [botToken, setBotToken] = useState(config?.bot_token ?? "");
   const [isActive, setIsActive] = useState(channel?.is_active ?? false);
   const [saving, setSaving] = useState(false);
-
-  const webhookUrl = channel?.id ? getWebhookUrl("telegram", channel.id) : null;
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; info?: string; error?: string } | null>(null);
 
   const handleSave = async () => {
     setSaving(true);
-    const { error } = await upsertChannelSettings(shopId, "telegram", { bot_token: botToken }, isActive);
+    setTestResult(null);
+    const existingSecret = config?.webhook_secret;
+    const { error, webhookStatus } = await upsertChannelSettings(
+      shopId,
+      "telegram",
+      { bot_token: botToken, ...(existingSecret ? { webhook_secret: existingSecret } : {}) },
+      isActive
+    );
     setSaving(false);
     if (error) {
       toast.error(error);
     } else {
-      toast.success("Telegram settings saved");
+      toast.success(webhookStatus ?? "Telegram settings saved");
       onSave();
     }
   };
 
-  const copyWebhook = () => {
-    if (webhookUrl) {
-      navigator.clipboard.writeText(webhookUrl);
-      toast.success("Webhook URL copied");
-    }
+  const handleTest = async () => {
+    setTesting(true);
+    const result = await testChannelConnection(shopId, "telegram");
+    setTestResult(result);
+    setTesting(false);
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <Label htmlFor="telegram-active" className="font-medium">Enable Telegram Bot</Label>
-        <Switch
-          id="telegram-active"
-          checked={isActive}
-          onCheckedChange={setIsActive}
-        />
+        <div>
+          <Label htmlFor="telegram-active" className="font-medium">Enable Telegram Bot</Label>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Controls whether the bot responds to messages from customers
+          </p>
+        </div>
+        <Switch id="telegram-active" checked={isActive} onCheckedChange={setIsActive} />
       </div>
 
       <div className="space-y-2">
@@ -105,37 +109,36 @@ function TelegramForm({
         />
         <p className="text-xs text-muted-foreground">
           Get this from{" "}
-          <a
-            href="https://t.me/BotFather"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline"
-          >
+          <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="underline">
             @BotFather
           </a>{" "}
-          on Telegram.
+          on Telegram. Saving will automatically register the webhook.
         </p>
       </div>
 
-      {webhookUrl && (
-        <div className="space-y-2">
-          <Label>Webhook URL</Label>
-          <div className="flex gap-2">
-            <Input value={webhookUrl} readOnly className="text-xs font-mono bg-muted" />
-            <Button variant="outline" size="icon" onClick={copyWebhook}>
-              <Copy className="h-4 w-4" />
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Register this URL as your Telegram webhook using the Telegram API or via BotFather.
-          </p>
-        </div>
+      {testResult && (
+        <Alert className={testResult.ok ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
+          <AlertDescription className={`flex items-center gap-2 text-sm ${testResult.ok ? "text-green-700" : "text-red-700"}`}>
+            {testResult.ok
+              ? <CheckCircle2 className="h-4 w-4 shrink-0" />
+              : <XCircle className="h-4 w-4 shrink-0" />}
+            {testResult.info ?? testResult.error}
+          </AlertDescription>
+        </Alert>
       )}
 
-      <Button onClick={handleSave} disabled={saving || !botToken}>
-        {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-        Save Telegram Settings
-      </Button>
+      <div className="flex gap-2">
+        <Button onClick={handleSave} disabled={saving || !botToken}>
+          {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          Save &amp; Register
+        </Button>
+        {channel && (
+          <Button variant="outline" onClick={handleTest} disabled={testing}>
+            {testing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Zap className="h-4 w-4 mr-2" />}
+            Test Connection
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -149,42 +152,48 @@ function ViberForm({
   shopId: string;
   onSave: () => void;
 }) {
-  const [authToken, setAuthToken] = useState(
-    (channel?.config as Record<string, string>)?.auth_token ?? ""
-  );
+  const config = channel?.config as Record<string, string> | undefined;
+  const [authToken, setAuthToken] = useState(config?.auth_token ?? "");
   const [isActive, setIsActive] = useState(channel?.is_active ?? false);
   const [saving, setSaving] = useState(false);
-
-  const webhookUrl = channel?.id ? getWebhookUrl("viber", channel.id) : null;
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; info?: string; error?: string } | null>(null);
 
   const handleSave = async () => {
     setSaving(true);
-    const { error } = await upsertChannelSettings(shopId, "viber", { auth_token: authToken }, isActive);
+    setTestResult(null);
+    const { error, webhookStatus } = await upsertChannelSettings(
+      shopId,
+      "viber",
+      { auth_token: authToken },
+      isActive
+    );
     setSaving(false);
     if (error) {
       toast.error(error);
     } else {
-      toast.success("Viber settings saved");
+      toast.success(webhookStatus ?? "Viber settings saved");
       onSave();
     }
   };
 
-  const copyWebhook = () => {
-    if (webhookUrl) {
-      navigator.clipboard.writeText(webhookUrl);
-      toast.success("Webhook URL copied");
-    }
+  const handleTest = async () => {
+    setTesting(true);
+    const result = await testChannelConnection(shopId, "viber");
+    setTestResult(result);
+    setTesting(false);
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <Label htmlFor="viber-active" className="font-medium">Enable Viber Bot</Label>
-        <Switch
-          id="viber-active"
-          checked={isActive}
-          onCheckedChange={setIsActive}
-        />
+        <div>
+          <Label htmlFor="viber-active" className="font-medium">Enable Viber Bot</Label>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Controls whether the bot responds to messages from Viber customers
+          </p>
+        </div>
+        <Switch id="viber-active" checked={isActive} onCheckedChange={setIsActive} />
       </div>
 
       <div className="space-y-2">
@@ -198,37 +207,36 @@ function ViberForm({
         />
         <p className="text-xs text-muted-foreground">
           Find this in your{" "}
-          <a
-            href="https://partners.viber.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline"
-          >
+          <a href="https://partners.viber.com" target="_blank" rel="noopener noreferrer" className="underline">
             Viber Admin Panel
           </a>
-          .
+          . Saving will automatically register the webhook.
         </p>
       </div>
 
-      {webhookUrl && (
-        <div className="space-y-2">
-          <Label>Webhook URL</Label>
-          <div className="flex gap-2">
-            <Input value={webhookUrl} readOnly className="text-xs font-mono bg-muted" />
-            <Button variant="outline" size="icon" onClick={copyWebhook}>
-              <Copy className="h-4 w-4" />
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Set this as your Viber webhook URL in the Viber Admin Panel.
-          </p>
-        </div>
+      {testResult && (
+        <Alert className={testResult.ok ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
+          <AlertDescription className={`flex items-center gap-2 text-sm ${testResult.ok ? "text-green-700" : "text-red-700"}`}>
+            {testResult.ok
+              ? <CheckCircle2 className="h-4 w-4 shrink-0" />
+              : <XCircle className="h-4 w-4 shrink-0" />}
+            {testResult.info ?? testResult.error}
+          </AlertDescription>
+        </Alert>
       )}
 
-      <Button onClick={handleSave} disabled={saving || !authToken}>
-        {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-        Save Viber Settings
-      </Button>
+      <div className="flex gap-2">
+        <Button onClick={handleSave} disabled={saving || !authToken}>
+          {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          Save &amp; Register
+        </Button>
+        {channel && (
+          <Button variant="outline" onClick={handleTest} disabled={testing}>
+            {testing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Zap className="h-4 w-4 mr-2" />}
+            Test Connection
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -236,74 +244,72 @@ function ViberForm({
 function WebChatForm({
   channel,
   shopId,
-  shopSlug,
   onSave,
 }: {
   channel: MessagingChannel | undefined;
   shopId: string;
-  shopSlug: string;
   onSave: () => void;
 }) {
   const [isActive, setIsActive] = useState(channel?.is_active ?? false);
   const [saving, setSaving] = useState(false);
-
-  const embedSnippet = `<script
-  src="${typeof window !== "undefined" ? window.location.origin : ""}/webchat-widget.js"
-  data-shop-slug="${shopSlug}"
-></script>`;
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; info?: string; error?: string } | null>(null);
 
   const handleSave = async () => {
     setSaving(true);
+    setTestResult(null);
     const { error } = await upsertChannelSettings(shopId, "webchat", {}, isActive);
     setSaving(false);
     if (error) {
       toast.error(error);
     } else {
-      toast.success("Web Chat settings saved");
+      toast.success(isActive ? "Web chat enabled on your storefront" : "Web chat hidden from storefront");
       onSave();
     }
   };
 
-  const copySnippet = () => {
-    navigator.clipboard.writeText(embedSnippet);
-    toast.success("Embed snippet copied");
+  const handleTest = async () => {
+    setTesting(true);
+    const result = await testChannelConnection(shopId, "webchat");
+    setTestResult(result);
+    setTesting(false);
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <Label htmlFor="webchat-active" className="font-medium">Enable Web Chat Widget</Label>
-        <Switch
-          id="webchat-active"
-          checked={isActive}
-          onCheckedChange={setIsActive}
-        />
-      </div>
-
-      <p className="text-sm text-muted-foreground">
-        When enabled, a chat bubble will appear on your public storefront for customers to contact you directly.
-      </p>
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label>Embed Snippet</Label>
-          <Button variant="ghost" size="sm" onClick={copySnippet} className="gap-1.5 text-xs">
-            <Copy className="h-3.5 w-3.5" /> Copy
-          </Button>
+        <div>
+          <Label htmlFor="webchat-active" className="font-medium">Show chat widget on storefront</Label>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            When on, a chat bubble appears on your public shop pages for customers to message you
+          </p>
         </div>
-        <pre className="text-xs bg-muted rounded-md p-3 overflow-x-auto whitespace-pre-wrap break-all font-mono">
-          {embedSnippet}
-        </pre>
-        <p className="text-xs text-muted-foreground">
-          Paste this before the closing{" "}
-          <code className="bg-muted px-1 rounded">&lt;/body&gt;</code> tag of your storefront.
-        </p>
+        <Switch id="webchat-active" checked={isActive} onCheckedChange={setIsActive} />
       </div>
 
-      <Button onClick={handleSave} disabled={saving}>
-        {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-        Save Web Chat Settings
-      </Button>
+      {testResult && (
+        <Alert className={testResult.ok ? "border-green-200 bg-green-50" : "border-amber-200 bg-amber-50"}>
+          <AlertDescription className={`flex items-center gap-2 text-sm ${testResult.ok ? "text-green-700" : "text-amber-700"}`}>
+            {testResult.ok
+              ? <CheckCircle2 className="h-4 w-4 shrink-0" />
+              : <XCircle className="h-4 w-4 shrink-0" />}
+            {testResult.info ?? testResult.error}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="flex gap-2">
+        <Button onClick={handleSave} disabled={saving}>
+          {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          Save Settings
+        </Button>
+        {channel && (
+          <Button variant="outline" onClick={handleTest} disabled={testing}>
+            {testing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Zap className="h-4 w-4 mr-2" />}
+            Check Status
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -327,7 +333,7 @@ export function ChannelSettings({ shopId, shopSlug }: Props) {
     return (
       <div className="space-y-4">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="h-48 rounded-lg bg-muted animate-pulse" />
+          <div key={i} className="h-44 rounded-lg bg-muted animate-pulse" />
         ))}
       </div>
     );
@@ -342,10 +348,13 @@ export function ChannelSettings({ shopId, shopSlug }: Props) {
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div>
-                  <CardTitle className={`text-base flex items-center gap-2 ${p.color}`}>
+                  <CardTitle className={`text-base flex items-center gap-2 ${p.colorClass}`}>
                     {p.label}
                     {channel?.is_active && (
-                      <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 text-[10px]">
+                      <Badge
+                        variant="outline"
+                        className="text-green-600 border-green-200 bg-green-50 text-[10px]"
+                      >
                         Active
                       </Badge>
                     )}
@@ -362,7 +371,7 @@ export function ChannelSettings({ shopId, shopSlug }: Props) {
                 <ViberForm channel={channel} shopId={shopId} onSave={load} />
               )}
               {p.key === "webchat" && (
-                <WebChatForm channel={channel} shopId={shopId} shopSlug={shopSlug} onSave={load} />
+                <WebChatForm channel={channel} shopId={shopId} onSave={load} />
               )}
             </CardContent>
           </Card>

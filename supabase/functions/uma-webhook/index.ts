@@ -2,8 +2,15 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-telegram-bot-api-secret-token, x-viber-content-signature",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-telegram-bot-api-secret-token, x-viber-content-signature",
 };
+
+const OK = (body: unknown) =>
+  new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 
 interface NormalizedMessage {
   platform: "telegram" | "viber" | "webchat";
@@ -17,8 +24,24 @@ interface NormalizedMessage {
   metadata?: Record<string, unknown>;
 }
 
+async function hmacSha256Hex(key: string, data: string): Promise<string> {
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(key),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sigBytes = await crypto.subtle.sign("HMAC", cryptoKey, new TextEncoder().encode(data));
+  return Array.from(new Uint8Array(sigBytes))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 function normalizeTelegram(body: Record<string, unknown>): NormalizedMessage | null {
-  const message = (body.message ?? body.edited_message ?? body.channel_post) as Record<string, unknown> | undefined;
+  const message = (body.message ?? body.edited_message ?? body.channel_post) as
+    | Record<string, unknown>
+    | undefined;
   if (!message) return null;
 
   const from = message.from as Record<string, unknown> | undefined;
@@ -29,7 +52,9 @@ function normalizeTelegram(body: Record<string, unknown>): NormalizedMessage | n
   const msgId = String(message.message_id ?? "");
   const firstName = String(from?.first_name ?? "");
   const lastName = String(from?.last_name ?? "");
-  const senderName = [firstName, lastName].filter(Boolean).join(" ") || String(from?.username ?? "Unknown");
+  const senderName =
+    [firstName, lastName].filter(Boolean).join(" ") ||
+    String(from?.username ?? "Unknown");
   const senderId = String(from?.id ?? chat.id);
 
   let content = "";
@@ -57,7 +82,9 @@ function normalizeTelegram(body: Record<string, unknown>): NormalizedMessage | n
     platform_message_id: msgId,
     sender_id: senderId,
     sender_name: senderName,
-    sender_avatar: from?.username ? `https://t.me/i/userpic/320/${from.username}.jpg` : undefined,
+    sender_avatar: from?.username
+      ? `https://t.me/i/userpic/320/${from.username}.jpg`
+      : undefined,
     content,
     content_type: contentType,
     metadata: { raw: body },
@@ -114,20 +141,20 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const rawBody = await req.text();
+
   try {
     const url = new URL(req.url);
-
-    const platform = url.searchParams.get("platform") as "telegram" | "viber" | "webchat" | null;
+    const platform = url.searchParams.get("platform") as
+      | "telegram"
+      | "viber"
+      | "webchat"
+      | null;
     const channelId = url.searchParams.get("channel_id");
 
     if (!platform || !channelId) {
-      return new Response(JSON.stringify({ error: "Missing platform or channel_id" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return OK({ ok: true, skipped: true, reason: "missing params" });
     }
-
-    const body = await req.json() as Record<string, unknown>;
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -141,10 +168,37 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (chanErr || !channel || !channel.is_active) {
-      return new Response(JSON.stringify({ error: "Channel not found or inactive" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return OK({ ok: true, skipped: true, reason: "channel inactive or not found" });
+    }
+
+    const config = channel.config as Record<string, string>;
+
+    if (platform === "telegram") {
+      const incomingSecret = req.headers.get("x-telegram-bot-api-secret-token");
+      const storedSecret = config.webhook_secret;
+      if (storedSecret && incomingSecret !== storedSecret) {
+        console.warn("Telegram secret token mismatch — request ignored");
+        return OK({ ok: true, skipped: true, reason: "invalid secret" });
+      }
+    }
+
+    if (platform === "viber") {
+      const signature = req.headers.get("x-viber-content-signature");
+      const authToken = config.auth_token;
+      if (authToken && signature) {
+        const expected = await hmacSha256Hex(authToken, rawBody);
+        if (expected !== signature) {
+          console.warn("Viber signature mismatch — request ignored");
+          return OK({ ok: true, skipped: true, reason: "invalid signature" });
+        }
+      }
+    }
+
+    let body: Record<string, unknown>;
+    try {
+      body = JSON.parse(rawBody) as Record<string, unknown>;
+    } catch {
+      return OK({ ok: true, skipped: true, reason: "invalid JSON" });
     }
 
     let normalized: NormalizedMessage | null = null;
@@ -155,7 +209,9 @@ Deno.serve(async (req: Request) => {
     } else if (platform === "webchat") {
       normalized = {
         platform: "webchat",
-        platform_conversation_id: String(body.session_id ?? body.conversation_id ?? ""),
+        platform_conversation_id: String(
+          body.session_id ?? body.conversation_id ?? ""
+        ),
         platform_message_id: String(body.message_id ?? crypto.randomUUID()),
         sender_id: String(body.sender_id ?? "guest"),
         sender_name: String(body.sender_name ?? "Guest"),
@@ -166,9 +222,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!normalized || !normalized.content) {
-      return new Response(JSON.stringify({ ok: true, skipped: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return OK({ ok: true, skipped: true, reason: "no content to store" });
     }
 
     const { data: existingConv } = await supabase
@@ -176,21 +230,21 @@ Deno.serve(async (req: Request) => {
       .select("id")
       .eq("channel_id", channelId)
       .eq("platform_conversation_id", normalized.platform_conversation_id)
-      .single();
+      .maybeSingle();
 
     let conversationId: string;
 
     if (existingConv) {
       conversationId = existingConv.id;
     } else {
-      const { data: existingCustomer } = await supabase
+      const { data: existingIdentity } = await supabase
         .from("customer_identities")
         .select("customer_id")
         .eq("platform", platform)
         .eq("platform_id", normalized.sender_id)
         .maybeSingle();
 
-      let customerId: string | null = existingCustomer?.customer_id ?? null;
+      let customerId: string | null = existingIdentity?.customer_id ?? null;
 
       if (!customerId) {
         const { data: newCustomer } = await supabase
@@ -231,10 +285,7 @@ Deno.serve(async (req: Request) => {
 
       if (convErr || !newConv) {
         console.error("Failed to create conversation", convErr);
-        return new Response(JSON.stringify({ error: "Failed to create conversation" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return OK({ ok: true, skipped: true, reason: "conversation insert failed" });
       }
 
       conversationId = newConv.id;
@@ -253,20 +304,12 @@ Deno.serve(async (req: Request) => {
 
     if (msgErr) {
       console.error("Failed to insert message", msgErr);
-      return new Response(JSON.stringify({ error: "Failed to insert message" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return OK({ ok: true, skipped: true, reason: "message insert failed" });
     }
 
-    return new Response(JSON.stringify({ ok: true, conversation_id: conversationId }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return OK({ ok: true, conversation_id: conversationId });
   } catch (err) {
     console.error("UMA webhook error", err);
-    return new Response(JSON.stringify({ error: "Internal server error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return OK({ ok: true, skipped: true, reason: "internal error" });
   }
 });

@@ -93,13 +93,16 @@ A cross-platform messaging layer that aggregates Telegram, Viber, and Web Chat i
 
 ### Edge Function
 - `uma-webhook` (deployed, no JWT verify): Accepts `?platform=telegram|viber|webchat&channel_id=<uuid>`. Normalizes platform payloads, resolves/creates customers via `customer_identities`, upserts conversations, and inserts messages.
+- **Security**: Validates `X-Telegram-Bot-Api-Secret-Token` header against `config.webhook_secret` (auto-generated at registration). Validates `X-Viber-Content-Signature` header via HMAC-SHA256(rawBody, auth_token). Invalid requests are silently dropped with a 200 OK to prevent platform retries.
+- **Graceful failures**: All error paths return 200 OK (never 4xx/5xx) to prevent Telegram/Viber from disabling the webhook on transient failures.
 
 ### Server Actions (`src/actions/messaging.ts`)
 - `getShopChannels(shopId)` — fetch all channel configs for a shop
-- `upsertChannelSettings(shopId, platform, config, isActive)` — save channel config
+- `upsertChannelSettings(shopId, platform, config, isActive)` — save config **and** auto-register webhook with Telegram (`setWebhook` + `secret_token`) or Viber (`set_webhook`). Deregisters webhook when `isActive = false`. Returns `{ webhookStatus }` message.
+- `testChannelConnection(shopId, platform)` — validates token (Telegram: `getMe` + `getWebhookInfo`, Viber: `get_account_info`, WebChat: active status check)
 - `getConversations(shopId, options)` — list conversations with platform/status filters
 - `getMessages(conversationId, limit)` — get messages in a conversation
-- `sendMessage(conversationId, content)` — insert outbound message + dispatch to Telegram API if configured
+- `sendMessage(conversationId, content)` — insert outbound message + dispatch to Telegram (`sendMessage`) or Viber (`send_message`) API
 - `markConversationRead(conversationId)` — reset unread count
 - `updateConversationStatus(conversationId, status)` — open/resolved/archived
 

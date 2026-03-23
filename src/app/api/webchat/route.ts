@@ -1,6 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 
+export async function GET(req: NextRequest) {
+  const shopSlug = req.nextUrl.searchParams.get("shop_slug");
+  if (!shopSlug) {
+    return NextResponse.json({ active: false });
+  }
+  try {
+    const supabase = await createServiceClient();
+
+    const { data: shop } = await supabase
+      .from("shops")
+      .select("id")
+      .eq("slug", shopSlug)
+      .single();
+
+    if (!shop) return NextResponse.json({ active: false });
+
+    const { data: channel } = await supabase
+      .from("messaging_channels")
+      .select("id, is_active")
+      .eq("shop_id", shop.id)
+      .eq("platform", "webchat")
+      .single();
+
+    return NextResponse.json({ active: channel?.is_active ?? false });
+  } catch {
+    return NextResponse.json({ active: false });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as {
