@@ -75,7 +75,8 @@ export async function getPOSProducts(shopId: string): Promise<POSProduct[]> {
     .single();
   if (!shop || shop.owner_id !== user.id) return [];
 
-  const { data: products } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: products } = await (supabase as any)
     .from("products")
     .select(`
       id, name, price, sale_price, image_url, sku, stock,
@@ -94,52 +95,42 @@ export async function getPOSProducts(shopId: string): Promise<POSProduct[]> {
 
   if (!products) return [];
 
-  return products.map((p) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (products as any[]).map((p: any) => {
     const inv = Array.isArray(p.inventory) ? p.inventory[0] : p.inventory;
     const available_stock = p.track_inventory
       ? Math.max(0, (inv?.stock_quantity ?? p.stock ?? 0) - (inv?.reserved_quantity ?? 0))
       : 9999;
 
-    const variations = ((p.product_variations as unknown[]) ?? [])
-      .filter((v: unknown) => (v as { is_active: boolean }).is_active)
-      .map((v: unknown) => {
-        const vt = v as {
-          id: string;
-          attribute_combination: Record<string, string> | null;
-          price: number;
-          sale_price: number | null;
-          stock_quantity: number;
-          image_url: string | null;
-          is_active: boolean;
-          track_inventory: boolean;
-          inventory: { stock_quantity: number; reserved_quantity: number }[] | null;
-        };
-        const vInv = Array.isArray(vt.inventory) ? vt.inventory[0] : vt.inventory;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const variations: POSProductVariation[] = ((p.product_variations as any[]) ?? [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((v: any) => v.is_active)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((v: any) => {
+        const vInv = Array.isArray(v.inventory) ? v.inventory[0] : v.inventory;
         return {
-          id: vt.id,
-          attribute_combination: vt.attribute_combination,
-          price: vt.price,
-          sale_price: vt.sale_price,
-          stock_quantity: vInv?.stock_quantity ?? vt.stock_quantity ?? 0,
+          id: v.id,
+          attribute_combination: v.attribute_combination,
+          price: v.price,
+          sale_price: v.sale_price,
+          stock_quantity: vInv?.stock_quantity ?? v.stock_quantity ?? 0,
           reserved_quantity: vInv?.reserved_quantity ?? 0,
-          image_url: vt.image_url,
-          is_active: vt.is_active,
-          track_inventory: vt.track_inventory ?? true,
-        } as POSProductVariation;
+          image_url: v.image_url,
+          is_active: v.is_active,
+          track_inventory: v.track_inventory ?? true,
+        };
       });
 
-    const category_ids = ((p.product_categories as unknown[]) ?? []).map(
-      (pc: unknown) => (pc as { category_id: string }).category_id
-    );
-
-    const effective_price = p.sale_price ?? p.price;
+    const category_ids: string[] = ((p.product_categories as { category_id: string }[]) ?? [])
+      .map((pc) => pc.category_id);
 
     return {
       id: p.id,
       name: p.name,
       price: p.price,
       sale_price: p.sale_price,
-      effective_price,
+      effective_price: p.sale_price ?? p.price,
       image_url: p.image_url,
       sku: p.sku ?? null,
       stock: inv?.stock_quantity ?? p.stock ?? 0,
@@ -148,7 +139,7 @@ export async function getPOSProducts(shopId: string): Promise<POSProduct[]> {
       track_inventory: p.track_inventory ?? false,
       category_ids,
       variations,
-    };
+    } as POSProduct;
   });
 }
 
@@ -171,7 +162,7 @@ export async function searchPOSCustomers(shopId: string, query: string) {
     .select("id, name, email, phone, total_orders, total_spent")
     .eq("shop_id", shopId)
     .or(`name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`)
-    .order("last_order_at", { ascending: false })
+    .order("last_order_at", { ascending: false, nullsFirst: false })
     .limit(10);
 
   return data ?? [];
@@ -185,26 +176,35 @@ export async function quickAddPOSCustomer(
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated" };
+  if (!user) return { error: "Not authenticated", data: null };
 
   const { data: shop } = await supabase
     .from("shops")
     .select("owner_id")
     .eq("id", shopId)
     .single();
-  if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
+  if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized", data: null };
 
-  const result = await getOrCreateCustomer(shopId, {
+  return getOrCreateCustomer(shopId, {
     name: input.name,
     phone: input.phone || undefined,
     email: input.email || undefined,
     platform: "pos",
   });
-
-  return result;
 }
 
 // ─── Create POS order ─────────────────────────────────────────────────────────
+
+function calcItemSubtotal(items: POSOrderItem[]) {
+  return items.reduce((sum, item) => {
+    const lineTotal = item.price * item.quantity;
+    const itemDisc =
+      item.item_discount_type === "percent"
+        ? lineTotal * (item.item_discount_amount / 100)
+        : item.item_discount_amount;
+    return sum + Math.max(0, lineTotal - Math.min(itemDisc, lineTotal));
+  }, 0);
+}
 
 export async function createPOSOrder(payload: POSOrderPayload) {
   const supabase = await createClient();
@@ -218,34 +218,14 @@ export async function createPOSOrder(payload: POSOrderPayload) {
     .single();
   if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
 
-  const itemSubtotal = payload.items.reduce((sum, item) => {
-    const itemTotal = item.price * item.quantity;
-    const itemDiscount =
-      item.item_discount_type === "percent"
-        ? itemTotal * (item.item_discount_amount / 100)
-        : item.item_discount_amount;
-    return sum + itemTotal - Math.min(itemDiscount, itemTotal);
-  }, 0);
-
+  const rawSubtotal = payload.items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const afterItemDiscounts = calcItemSubtotal(payload.items);
   const globalDiscount =
     payload.global_discount_type === "percent"
-      ? itemSubtotal * (payload.global_discount_amount / 100)
+      ? afterItemDiscounts * (payload.global_discount_amount / 100)
       : payload.global_discount_amount;
-
-  const discount_amount = Math.min(
-    (payload.items.reduce((sum, item) => {
-      const itemTotal = item.price * item.quantity;
-      const itemDiscount =
-        item.item_discount_type === "percent"
-          ? itemTotal * (item.item_discount_amount / 100)
-          : item.item_discount_amount;
-      return sum + Math.min(itemDiscount, itemTotal);
-    }, 0)) + globalDiscount,
-    payload.items.reduce((s, i) => s + i.price * i.quantity, 0)
-  );
-
-  const subtotal = payload.items.reduce((s, i) => s + i.price * i.quantity, 0);
-  const total = Math.max(0, subtotal - discount_amount);
+  const total = Math.max(0, afterItemDiscounts - Math.min(globalDiscount, afterItemDiscounts));
+  const discount_amount = Math.max(0, rawSubtotal - total);
 
   const items_snapshot = payload.items.map((i) => ({
     product_id: i.product_id,
@@ -279,7 +259,8 @@ export async function createPOSOrder(payload: POSOrderPayload) {
     channel: "pos",
   };
 
-  const { data: order, error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: order, error } = await (supabase as any)
     .from("orders")
     .insert({
       shop_id: payload.shop_id,
@@ -287,16 +268,16 @@ export async function createPOSOrder(payload: POSOrderPayload) {
       customer_id: customerId ?? null,
       items_snapshot,
       customer_snapshot,
-      subtotal,
+      subtotal: rawSubtotal,
       shipping_fee: 0,
       total,
       notes: payload.note ?? null,
       payment_method_id: payload.payment_method_id,
       payment_status: payload.payment_status,
-      status: "pending",
+      status: payload.payment_status === "paid" ? "confirmed" : "pending",
       source: "pos",
       discount_amount,
-    } as Parameters<ReturnType<typeof supabase>["from"]>["0"] extends never ? never : never & object)
+    })
     .select()
     .single();
 
@@ -305,7 +286,6 @@ export async function createPOSOrder(payload: POSOrderPayload) {
   const svc = await createServiceClient();
   for (const item of payload.items) {
     const vidRaw = item.variation_id?.trim() ?? "";
-
     const { data: product } = await svc
       .from("products")
       .select("track_inventory, product_type")
@@ -313,23 +293,14 @@ export async function createPOSOrder(payload: POSOrderPayload) {
       .single();
     if (!product?.track_inventory) continue;
 
-    if (vidRaw) {
-      await svc.rpc("try_reserve_inventory_line", {
-        p_product_id: item.product_id,
-        p_variation_id: vidRaw as unknown as string,
-        p_qty: item.quantity,
-      });
-    } else {
-      await svc.rpc("try_reserve_inventory_line", {
-        p_product_id: item.product_id,
-        p_variation_id: null as unknown as string,
-        p_qty: item.quantity,
-      });
-    }
+    await svc.rpc("try_reserve_inventory_line", {
+      p_product_id: item.product_id,
+      p_variation_id: (vidRaw || null) as unknown as string,
+      p_qty: item.quantity,
+    });
   }
 
   revalidatePath(`/vendor/${shop.slug}/orders`);
   revalidatePath(`/vendor/${shop.slug}/pos`);
-
   return { data: order };
 }

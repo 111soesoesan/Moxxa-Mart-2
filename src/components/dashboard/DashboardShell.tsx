@@ -23,6 +23,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   billing: "Billing",
   settings: "Settings",
   "payment-methods": "Payment Methods",
+  pos: "POS Terminal",
 };
 
 type BreadcrumbEntry = { label: string; href?: string };

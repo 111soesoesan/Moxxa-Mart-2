@@ -146,3 +146,39 @@ When asked to run or test the app, use the following:
    - Apply them using the Supabase CLI.
    - Regenerate TS types to ensure frontend sync.
    - Update `supabase/docs/` to reflect new tables, triggers, or RLS policies.
+
+## 7. Smart POS System (migration 20260325000000)
+
+### Overview
+A full-screen Point of Sale terminal at `/vendor/[shopSlug]/pos` for in-store sales.
+
+### Route & Navigation
+- **URL**: `/vendor/[shopSlug]/pos`
+- **Sidebar**: "POS Terminal" link with Calculator icon, above Products in the Workspace group
+- **Breadcrumb**: "POS Terminal" (added to SEGMENT_LABELS in DashboardShell)
+
+### Files
+- `src/app/(vendor)/vendor/[shopSlug]/pos/page.tsx` — Server component; prefetches products, categories, payment methods
+- `src/actions/pos.ts` — Server actions: `getPOSProducts`, `searchPOSCustomers`, `quickAddPOSCustomer`, `createPOSOrder`
+- `src/components/pos/POSTerminal.tsx` — Client orchestrator; three-pane desktop / tab mobile layout
+- `src/components/pos/usePOSCart.ts` — Cart state hook with localStorage-backed cart suspension
+- `src/components/pos/POSCategoryFilter.tsx` — Left category sidebar with item counts
+- `src/components/pos/POSProductGrid.tsx` — Middle product grid with search and variation picker dialog
+- `src/components/pos/POSCartPanel.tsx` — Right checkout panel (items, discounts, customer, payment, charge)
+- `src/components/pos/POSCustomerSearch.tsx` — Dialog: omnichannel customer search + quick-add + guest mode
+
+### Schema Changes (migration 20260325000000_pos_source_and_rls.sql)
+- `orders.source` TEXT CHECK ('storefront'|'pos') DEFAULT 'storefront'
+- `orders.discount_amount` NUMERIC(12,2) DEFAULT 0
+- `orders.discount_note` TEXT
+- RLS: `orders_select_vendor` — shop owner can SELECT own-shop orders
+- RLS: `orders_update_vendor` — shop owner can UPDATE own-shop orders (payment status etc.)
+
+### Key Features
+- **Omnichannel customer resolution**: search existing, quick-add walk-in, or guest mode
+- **Per-item discounts**: fixed ₱ or percentage, via popover on each line item
+- **Global discount**: applied after item discounts (fixed ₱ or %)
+- **Cart suspension**: park up to N carts in localStorage, resume anytime
+- **Payment status toggle**: Unpaid / Pending / Paid — set at charge time
+- **Variation picker**: Dialog for variable products to select a specific SKU before adding to cart
+- **Inventory integration**: uses existing `try_reserve_inventory_line` RPC on order creation
