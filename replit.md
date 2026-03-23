@@ -77,6 +77,45 @@ When creating an order from a non-web channel, pass `platform` and `platformId` 
 createOrder({ ..., customer: { full_name, phone, platform: "whatsapp", platformId: "+6591234567" } })
 ```
 
+## 7. Unified Messaging Adapter (UMA)
+
+### Architecture
+A cross-platform messaging layer that aggregates Telegram, Viber, and Web Chat into a single Omni-Inbox per shop.
+
+- **`messaging_channels`**: Per-shop platform configs (`shop_id`, `platform`, `config` JSONB, `is_active`). One row per shop per platform.
+- **`messaging_conversations`**: Unified thread management linked to a `channel_id` and optionally a `customer_id`.
+- **`messaging_messages`**: Normalized message records (`direction: inbound|outbound`, `content_type: text|image|file|sticker`).
+- **RLS**: All three tables enforce shop owner isolation via the `shops.owner_id = auth.uid()` pattern.
+- **Realtime**: Both `messaging_conversations` and `messaging_messages` are added to `supabase_realtime` publication for live inbox updates.
+
+### Trigger
+- `trg_update_conversation_on_message_insert` — auto-updates `last_message_at`, `last_message_preview`, and `unread_count` on every new message insert.
+
+### Edge Function
+- `uma-webhook` (deployed, no JWT verify): Accepts `?platform=telegram|viber|webchat&channel_id=<uuid>`. Normalizes platform payloads, resolves/creates customers via `customer_identities`, upserts conversations, and inserts messages.
+
+### Server Actions (`src/actions/messaging.ts`)
+- `getShopChannels(shopId)` — fetch all channel configs for a shop
+- `upsertChannelSettings(shopId, platform, config, isActive)` — save channel config
+- `getConversations(shopId, options)` — list conversations with platform/status filters
+- `getMessages(conversationId, limit)` — get messages in a conversation
+- `sendMessage(conversationId, content)` — insert outbound message + dispatch to Telegram API if configured
+- `markConversationRead(conversationId)` — reset unread count
+- `updateConversationStatus(conversationId, status)` — open/resolved/archived
+
+### UI
+- `/vendor/[shopSlug]/messages` — Tabbed page: **Inbox** (OmniInbox) + **Channels** (ChannelSettings)
+- `OmniInbox.tsx` — Conversation list (with platform/status filters) + chat panel with real-time subscriptions
+- `ChannelSettings.tsx` — Per-platform config cards (Telegram Bot, Viber Bot, Web Chat widget)
+- `WebChatWidget.tsx` — Floating chat bubble for customer storefronts
+- `/api/webchat` — Next.js route handler that accepts web chat messages and inserts them via service client
+
+### Passing Web Chat Messages
+POST to `/api/webchat`:
+```json
+{ "shop_slug": "my-shop", "session_id": "<uuid>", "sender_name": "Guest", "content": "Hello!" }
+```
+
 ## 6. Key Integrations
 - **Payments**: System uses structured payment methods (stored in `payment_methods` table) and editable `payment_status` flows. Legacy `payment_info` JSONB fields have been deprecated and should not be used.
 - **Product Management**: Supports variable products with attributes and variations.

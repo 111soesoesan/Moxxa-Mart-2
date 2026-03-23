@@ -48,6 +48,7 @@ import {
   List,
   Tag,
   FolderTree,
+  MessageSquare,
 } from "lucide-react";
 import { Collapsible } from "radix-ui";
 import { signOut } from "@/actions/auth";
@@ -92,6 +93,7 @@ const OTHER_NAV_ITEMS = [
   { segment: "orders", label: "Orders", icon: ShoppingBag },
   { segment: "inventory", label: "Inventory", icon: BarChart3 },
   { segment: "customers", label: "Customers", icon: Users },
+  { segment: "messages", label: "Messages", icon: MessageSquare },
   { segment: "blogs", label: "Blogs", icon: Newspaper },
   { segment: "payment-methods", label: "Payment Methods", icon: Banknote },
   { segment: "billing", label: "Billing", icon: CreditCard },
