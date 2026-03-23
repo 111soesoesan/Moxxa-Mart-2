@@ -75,52 +75,51 @@ export async function getPOSProducts(shopId: string): Promise<POSProduct[]> {
     .single();
   if (!shop || shop.owner_id !== user.id) return [];
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: products } = await (supabase as any)
+  // Use the same pattern as getShopProductsWithDetails — no inventory join from products
+  // (inventory table has FKs to products, shops, AND variations which causes PostgREST
+  // ambiguity and silently returns null). Use denormalized stock/stock_quantity instead.
+  const { data: products, error: productsError } = await supabase
     .from("products")
-    .select(`
-      id, name, price, sale_price, image_url, sku, stock,
+    .select(
+      `id, name, price, sale_price, image_url, sku, stock,
       product_type, track_inventory, is_active,
-      inventory(stock_quantity, reserved_quantity),
       product_categories(category_id),
       product_variations(
         id, attribute_combination, price, sale_price,
-        stock_quantity, image_url, is_active, track_inventory,
-        inventory(stock_quantity, reserved_quantity)
-      )
-    `)
+        stock_quantity, image_url, is_active, track_inventory
+      )`
+    )
     .eq("shop_id", shopId)
     .eq("is_active", true)
     .order("name");
 
+  if (productsError) {
+    console.error("[getPOSProducts] query error:", productsError.message);
+    return [];
+  }
   if (!products) return [];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (products as any[]).map((p: any) => {
-    const inv = Array.isArray(p.inventory) ? p.inventory[0] : p.inventory;
-    const available_stock = p.track_inventory
-      ? Math.max(0, (inv?.stock_quantity ?? p.stock ?? 0) - (inv?.reserved_quantity ?? 0))
-      : 9999;
+    const stock = p.stock ?? 0;
+    const available_stock = p.track_inventory ? Math.max(0, stock) : 9999;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const variations: POSProductVariation[] = ((p.product_variations as any[]) ?? [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .filter((v: any) => v.is_active)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((v: any) => {
-        const vInv = Array.isArray(v.inventory) ? v.inventory[0] : v.inventory;
-        return {
-          id: v.id,
-          attribute_combination: v.attribute_combination,
-          price: v.price,
-          sale_price: v.sale_price,
-          stock_quantity: vInv?.stock_quantity ?? v.stock_quantity ?? 0,
-          reserved_quantity: vInv?.reserved_quantity ?? 0,
-          image_url: v.image_url,
-          is_active: v.is_active,
-          track_inventory: v.track_inventory ?? true,
-        };
-      });
+      .map((v: any) => ({
+        id: v.id,
+        attribute_combination: v.attribute_combination,
+        price: v.price,
+        sale_price: v.sale_price,
+        stock_quantity: v.stock_quantity ?? 0,
+        reserved_quantity: 0,
+        image_url: v.image_url,
+        is_active: v.is_active,
+        track_inventory: v.track_inventory ?? true,
+      }));
 
     const category_ids: string[] = ((p.product_categories as { category_id: string }[]) ?? [])
       .map((pc) => pc.category_id);
@@ -133,7 +132,7 @@ export async function getPOSProducts(shopId: string): Promise<POSProduct[]> {
       effective_price: p.sale_price ?? p.price,
       image_url: p.image_url,
       sku: p.sku ?? null,
-      stock: inv?.stock_quantity ?? p.stock ?? 0,
+      stock,
       available_stock,
       product_type: p.product_type ?? "simple",
       track_inventory: p.track_inventory ?? false,
