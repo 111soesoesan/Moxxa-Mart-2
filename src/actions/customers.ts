@@ -14,14 +14,25 @@ export type Customer = {
   first_order_at: string | null;
   last_order_at: string | null;
   user_id: string | null;
+  preferred_channel: string;
   created_at: string;
   updated_at: string;
+};
+
+export type CustomerIdentity = {
+  id: string;
+  customer_id: string;
+  platform: string;
+  platform_id: string;
+  metadata: Record<string, any> | null;
+  created_at: string;
 };
 
 export type CustomerActivity = {
   id: string;
   customer_id: string;
   activity_type: string;
+  reference_id: string | null;
   description: string | null;
   metadata: Record<string, any> | null;
   created_at: string;
@@ -55,7 +66,9 @@ export async function getShopCustomers(
     .eq("shop_id", shopId);
 
   if (options?.search) {
-    req = req.or(`email.ilike.%${options.search}%,name.ilike.%${options.search}%`);
+    req = req.or(
+      `email.ilike.%${options.search}%,name.ilike.%${options.search}%,phone.ilike.%${options.search}%`
+    );
   }
 
   const sortBy = options?.sortBy || "last_order_at";
@@ -138,6 +151,67 @@ export async function getCustomerActivity(
 
   const { data } = await req;
   return data ?? [];
+}
+
+export async function getCustomerOrders(customerId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data: customer } = await supabase
+    .from("customers")
+    .select("shop_id")
+    .eq("id", customerId)
+    .single();
+
+  if (!customer) return [];
+
+  const { data: shop } = await supabase
+    .from("shops")
+    .select("owner_id")
+    .eq("id", customer.shop_id)
+    .single();
+
+  if (!shop || shop.owner_id !== user.id) return [];
+
+  const { data } = await supabase
+    .from("orders")
+    .select("id, status, payment_status, total, created_at, items_snapshot, customer_snapshot")
+    .eq("customer_id", customerId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  return data ?? [];
+}
+
+export async function getCustomerIdentities(customerId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data: customer } = await supabase
+    .from("customers")
+    .select("shop_id")
+    .eq("id", customerId)
+    .single();
+
+  if (!customer) return [];
+
+  const { data: shop } = await supabase
+    .from("shops")
+    .select("owner_id")
+    .eq("id", customer.shop_id)
+    .single();
+
+  if (!shop || shop.owner_id !== user.id) return [];
+
+  const { data } = await supabase
+    .from("customer_identities")
+    .select("*")
+    .eq("customer_id", customerId)
+    .order("created_at", { ascending: true });
+
+  return (data ?? []) as CustomerIdentity[];
 }
 
 export async function addCustomerActivity(
@@ -274,39 +348,100 @@ export async function searchCustomersByEmail(shopId: string, email: string) {
     .select("*")
     .eq("shop_id", shopId)
     .eq("email", email)
-    .single();
+    .maybeSingle();
 
   return data ?? null;
 }
 
+/**
+ * Unified identity resolution: finds or creates a customer record for a shop.
+ *
+ * Resolution order:
+ * 1. Platform identity match (customer_identities table) — most specific.
+ * 2. Phone match — works for guests who never provide email.
+ * 3. Email match — for web / authenticated users.
+ * 4. Create new record when no match is found.
+ *
+ * After finding a match, any missing fields (email, phone) are backfilled,
+ * and the platform identity is registered if not already present.
+ */
 export async function getOrCreateCustomer(
   shopId: string,
   customerData: {
-    email: string;
+    email?: string;
     name: string;
-    phone: string;
+    phone?: string;
+    platform?: string;
+    platformId?: string;
   }
 ) {
   const supabase = await createServiceClient();
 
-  const { data: existing } = await supabase
-    .from("customers")
-    .select("*")
-    .eq("shop_id", shopId)
-    .eq("email", customerData.email)
-    .single();
+  // ── 1. Look up by platform identity ──────────────────────────
+  if (customerData.platform && customerData.platformId) {
+    const { data: identityRows } = await supabase
+      .from("customer_identities")
+      .select("customer_id")
+      .eq("platform", customerData.platform)
+      .eq("platform_id", customerData.platformId);
 
-  if (existing) {
-    return { data: existing, isNew: false };
+    if (identityRows && identityRows.length > 0) {
+      const custId = identityRows[0].customer_id;
+      const { data: existing } = await supabase
+        .from("customers")
+        .select("*")
+        .eq("id", custId)
+        .eq("shop_id", shopId)
+        .maybeSingle();
+
+      if (existing) {
+        await backfillCustomerFields(supabase, existing, customerData);
+        return { data: existing, isNew: false };
+      }
+    }
   }
 
+  // ── 2. Look up by phone ───────────────────────────────────────
+  if (customerData.phone) {
+    const { data: byPhone } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("shop_id", shopId)
+      .eq("phone", customerData.phone)
+      .maybeSingle();
+
+    if (byPhone) {
+      await backfillCustomerFields(supabase, byPhone, customerData);
+      await registerIdentity(supabase, byPhone.id, customerData);
+      return { data: byPhone, isNew: false };
+    }
+  }
+
+  // ── 3. Look up by email ───────────────────────────────────────
+  if (customerData.email) {
+    const { data: byEmail } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("shop_id", shopId)
+      .eq("email", customerData.email)
+      .maybeSingle();
+
+    if (byEmail) {
+      await backfillCustomerFields(supabase, byEmail, customerData);
+      await registerIdentity(supabase, byEmail.id, customerData);
+      return { data: byEmail, isNew: false };
+    }
+  }
+
+  // ── 4. Create new customer ────────────────────────────────────
   const { data: newCustomer, error } = await supabase
     .from("customers")
     .insert({
       shop_id: shopId,
-      email: customerData.email,
+      email: customerData.email || null,
       name: customerData.name,
-      phone: customerData.phone,
+      phone: customerData.phone || null,
+      preferred_channel: customerData.platform || "web",
       total_orders: 0,
       total_spent: 0,
     })
@@ -314,5 +449,41 @@ export async function getOrCreateCustomer(
     .single();
 
   if (error) return { error: error.message };
+
+  await registerIdentity(supabase, newCustomer.id, customerData);
+
   return { data: newCustomer, isNew: true };
+}
+
+/** Backfills missing email or phone on an existing customer record. */
+async function backfillCustomerFields(
+  supabase: Awaited<ReturnType<typeof createServiceClient>>,
+  customer: { id: string; email: string | null; phone: string | null },
+  newData: { email?: string; phone?: string; name?: string }
+) {
+  const updates: Record<string, string> = {};
+  if (newData.email && !customer.email) updates.email = newData.email;
+  if (newData.phone && !customer.phone) updates.phone = newData.phone;
+  if (Object.keys(updates).length === 0) return;
+  await supabase.from("customers").update(updates).eq("id", customer.id);
+}
+
+/** Upserts a platform identity link if platform + platformId are provided. */
+async function registerIdentity(
+  supabase: Awaited<ReturnType<typeof createServiceClient>>,
+  customerId: string,
+  data: { platform?: string; platformId?: string; name?: string }
+) {
+  if (!data.platform || !data.platformId) return;
+  await supabase
+    .from("customer_identities")
+    .upsert(
+      {
+        customer_id: customerId,
+        platform: data.platform,
+        platform_id: data.platformId,
+        metadata: data.name ? { display_name: data.name } : null,
+      },
+      { onConflict: "customer_id,platform" }
+    );
 }

@@ -12,9 +12,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Users, TrendingUp, ShoppingCart, DollarSign } from "lucide-react";
+import { Users, TrendingUp, ShoppingCart, DollarSign, Globe, MessageCircle, Send, PhoneCall, Instagram } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency, formatDate } from "@/lib/utils";
+
+const CHANNEL_BADGE: Record<string, { label: string; className: string; Icon: React.ComponentType<{ className?: string }> }> = {
+  web:       { label: "Web",       className: "bg-blue-100 text-blue-700",    Icon: Globe },
+  whatsapp:  { label: "WhatsApp",  className: "bg-green-100 text-green-700",  Icon: MessageCircle },
+  telegram:  { label: "Telegram",  className: "bg-sky-100 text-sky-700",      Icon: Send },
+  messenger: { label: "Messenger", className: "bg-indigo-100 text-indigo-700",Icon: MessageCircle },
+  instagram: { label: "Instagram", className: "bg-pink-100 text-pink-700",    Icon: Instagram },
+  phone:     { label: "Phone",     className: "bg-orange-100 text-orange-700",Icon: PhoneCall },
+};
 
 type SortOption = "last_order_at" | "total_spent" | "name";
 
@@ -166,7 +175,7 @@ export default function CustomersPage({ params: paramsPromise }: Props) {
       {/* Search and Filter */}
       <div className="flex gap-2">
         <Input
-          placeholder="Search by name or email..."
+          placeholder="Search by name, email, or phone…"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="max-w-md"
@@ -199,6 +208,7 @@ export default function CustomersPage({ params: paramsPromise }: Props) {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-3 px-4 font-medium">Customer</th>
+                    <th className="text-center py-3 px-4 font-medium">Channel</th>
                     <th className="text-center py-3 px-4 font-medium">Phone</th>
                     <th className="text-center py-3 px-4 font-medium">Orders</th>
                     <th className="text-right py-3 px-4 font-medium">Total Spent</th>
@@ -207,33 +217,42 @@ export default function CustomersPage({ params: paramsPromise }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {customers.map((customer) => (
-                    <tr key={customer.id} className="border-b hover:bg-muted/50">
-                      <td className="py-3 px-4">
-                        <div>
-                          <p className="font-medium">{customer.name}</p>
-                          <p className="text-xs text-muted-foreground">{customer.email}</p>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-center text-sm">{customer.phone ?? "—"}</td>
-                      <td className="py-3 px-4 text-center">
-                        <Badge variant="outline">{customer.total_orders}</Badge>
-                      </td>
-                      <td className="py-3 px-4 text-right font-medium">
-                        {formatCurrency(customer.total_spent)}
-                      </td>
-                      <td className="py-3 px-4 text-center text-sm text-muted-foreground">
-                        {customer.last_order_at
-                          ? formatDate(customer.last_order_at)
-                          : "N/A"}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <Link href={`/vendor/${shopSlug}/customers/${customer.id}`}>
-                          <Button variant="ghost" size="sm">View</Button>
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
+                  {customers.map((customer) => {
+                    const channelKey = (customer as any).preferred_channel ?? "web";
+                    const ch = CHANNEL_BADGE[channelKey] ?? CHANNEL_BADGE.web;
+                    const ChIcon = ch.Icon;
+                    return (
+                      <tr key={customer.id} className="border-b hover:bg-muted/50">
+                        <td className="py-3 px-4">
+                          <div>
+                            <p className="font-medium">{customer.name}</p>
+                            <p className="text-xs text-muted-foreground">{customer.email ?? "—"}</p>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${ch.className}`}>
+                            <ChIcon className="h-3 w-3" />
+                            {ch.label}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center text-sm">{customer.phone ?? "—"}</td>
+                        <td className="py-3 px-4 text-center">
+                          <Badge variant="outline">{customer.total_orders}</Badge>
+                        </td>
+                        <td className="py-3 px-4 text-right font-medium">
+                          {formatCurrency(customer.total_spent)}
+                        </td>
+                        <td className="py-3 px-4 text-center text-sm text-muted-foreground">
+                          {customer.last_order_at ? formatDate(customer.last_order_at) : "N/A"}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <Link href={`/vendor/${shopSlug}/customers/${customer.id}`}>
+                            <Button variant="ghost" size="sm">View</Button>
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

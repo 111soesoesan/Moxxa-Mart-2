@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import type { CartItem } from "@/hooks/useCart";
 import { effectiveVariationUnitPrice } from "@/lib/product-pricing";
-import { getOrCreateCustomer, addCustomerActivity } from "./customers";
+import { getOrCreateCustomer } from "./customers";
 
 type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>;
 
@@ -172,6 +172,8 @@ export type GuestInfo = {
   phone: string;
   address: string;
   email?: string;
+  platform?: string;
+  platformId?: string;
 };
 
 export type CreateOrderPayload = {
@@ -201,15 +203,24 @@ export async function createOrder(payload: CreateOrderPayload) {
     variation_id: i.variation_id ?? null,
   }));
 
-  // Get or create customer
+  // Resolve or create a customer record using phone/email for merging.
+  // No fake emails — NULL email is valid for phone-only guests.
   const customerResult = await getOrCreateCustomer(payload.shop_id, {
-    email: payload.customer.email || `guest-${Date.now()}@marketplace.local`,
+    email: payload.customer.email || undefined,
     name: payload.customer.full_name,
-    phone: payload.customer.phone,
+    phone: payload.customer.phone || undefined,
+    platform: payload.customer.platform || "web",
+    platformId: payload.customer.platformId || undefined,
   });
 
   if (customerResult.error) return { error: customerResult.error };
   const customerId = customerResult.data?.id;
+
+  // Include the originating channel in the snapshot for analytics
+  const customerSnapshot = {
+    ...payload.customer,
+    channel: payload.customer.platform || "web",
+  };
 
   const { data: order, error } = await supabase
     .from("orders")
@@ -218,7 +229,7 @@ export async function createOrder(payload: CreateOrderPayload) {
       user_id: user?.id ?? null,
       customer_id: customerId,
       items_snapshot,
-      customer_snapshot: payload.customer,
+      customer_snapshot: customerSnapshot,
       subtotal,
       shipping_fee,
       total,
@@ -239,19 +250,8 @@ export async function createOrder(payload: CreateOrderPayload) {
     return { error: reserveErr };
   }
 
-  // Log customer activity
-  if (customerId) {
-    await addCustomerActivity(
-      customerId,
-      "order_placed",
-      `Order placed`,
-      {
-        orderId: order.id,
-        total,
-        itemsCount: payload.items.length,
-      }
-    );
-  }
+  // Note: customer activity (order log) and stats update are handled by
+  // the trg_update_customer_stats_on_order_insert DB trigger automatically.
 
   return { data: order };
 }
