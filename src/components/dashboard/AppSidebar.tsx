@@ -49,6 +49,7 @@ import {
   Tag,
   FolderTree,
   MessageSquare,
+  Calculator,
 } from "lucide-react";
 import { Collapsible } from "radix-ui";
 import { signOut } from "@/actions/auth";
@@ -205,6 +206,21 @@ export function AppSidebar({ shops, currentShop, profile }: Props) {
                   <Link href={base}>
                     <LayoutDashboard />
                     <span>Dashboard</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {/* POS Terminal */}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={isActive("pos")}
+                  tooltip="POS Terminal"
+                  className={isActive("pos") ? "" : "text-primary font-medium"}
+                >
+                  <Link href={`${base}/pos`}>
+                    <Calculator />
+                    <span>POS Terminal</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
