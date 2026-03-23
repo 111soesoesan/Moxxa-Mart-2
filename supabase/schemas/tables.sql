@@ -246,20 +246,45 @@ CREATE TABLE IF NOT EXISTS public.inventory_logs (
 -- ─── CUSTOMERS ──────────────────────────────────────────────
 -- Per-shop customer records for CRM / analytics.
 CREATE TABLE IF NOT EXISTS public.customers (
-  id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-  shop_id         UUID          NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  user_id         UUID          REFERENCES public.profiles(id) ON DELETE SET NULL ON UPDATE CASCADE,
-  name            VARCHAR(255)  NOT NULL,
-  email           VARCHAR(255),
-  phone           VARCHAR(20),
-  total_orders    INTEGER       NOT NULL DEFAULT 0,
-  total_spent     DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-  last_order_at   TIMESTAMPTZ,
-  first_order_at  TIMESTAMPTZ,
-  created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-  CONSTRAINT customers_shop_email_unique UNIQUE (shop_id, email)
+  id                UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+  shop_id           UUID          NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  user_id           UUID          REFERENCES public.profiles(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  name              VARCHAR(255)  NOT NULL,
+  email             VARCHAR(255),
+  phone             VARCHAR(20),
+  preferred_channel TEXT          NOT NULL DEFAULT 'web'
+                      CHECK (preferred_channel IN ('web', 'whatsapp', 'telegram', 'messenger', 'instagram', 'phone')),
+  total_orders      INTEGER       NOT NULL DEFAULT 0,
+  total_spent       DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  last_order_at     TIMESTAMPTZ,
+  first_order_at    TIMESTAMPTZ,
+  created_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+  -- email unique enforced via partial index: customers_shop_email_unique WHERE email IS NOT NULL
+  -- phone unique enforced via partial index: customers_shop_phone_unique  WHERE phone IS NOT NULL
+  -- (migration 20260323010000 dropped original UNIQUE(shop_id,email) constraint
+  --  and replaced with partial indexes to allow multiple NULL-email guest rows)
 );
+
+
+-- ─── CUSTOMER IDENTITIES ────────────────────────────────────
+-- Links a customer record to one or more platform identifiers.
+-- A customer may have a 'web' identity (email/session), a 'whatsapp' identity
+-- (phone number), a 'telegram' identity (chat ID), etc.
+-- RLS: vendors can SELECT for their own shop; service role has full access.
+-- Added: migration 20260323010000_omnichannel_customers.sql
+CREATE TABLE IF NOT EXISTS public.customer_identities (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_id UUID        NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  platform    TEXT        NOT NULL
+                CHECK (platform IN ('web', 'whatsapp', 'telegram', 'messenger', 'instagram', 'phone')),
+  platform_id TEXT        NOT NULL,
+  metadata    JSONB,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (customer_id, platform)
+);
+-- Index for reverse lookup: platform + platform_id → customer
+-- CREATE INDEX customer_identities_platform_lookup_idx ON public.customer_identities(platform, platform_id);
 
 
 -- ─── CUSTOMER ACTIVITY ──────────────────────────────────────

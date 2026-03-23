@@ -26,9 +26,70 @@ CREATE UNIQUE INDEX IF NOT EXISTS customers_shop_email_unique
   WHERE email IS NOT NULL;
 
 
--- ─── 3. Add phone unique partial index ───────────────────────
--- Enforces one customer record per phone per shop (when phone is provided).
--- NULL phones are excluded so guest records without phone are allowed freely.
+-- ─── 3. Deduplicate existing phone+shop combinations ─────────
+-- Before adding the unique index we must consolidate any pre-existing duplicate
+-- (shop_id, phone) rows. For each duplicate set we keep the row with the
+-- earliest created_at (the canonical record) and redirect all foreign-key
+-- references to it before deleting the duplicates.
+DO $$
+DECLARE
+  dup RECORD;
+  kept_id UUID;
+BEGIN
+  FOR dup IN
+    SELECT shop_id, phone
+    FROM public.customers
+    WHERE phone IS NOT NULL
+    GROUP BY shop_id, phone
+    HAVING COUNT(*) > 1
+  LOOP
+    -- The canonical customer is the one created first
+    SELECT id INTO kept_id
+    FROM public.customers
+    WHERE shop_id = dup.shop_id AND phone = dup.phone
+    ORDER BY created_at ASC
+    LIMIT 1;
+
+    -- Re-point orders from duplicate customers to the canonical one
+    UPDATE public.orders
+    SET customer_id = kept_id
+    WHERE shop_id = dup.shop_id
+      AND customer_id IN (
+        SELECT id FROM public.customers
+        WHERE shop_id = dup.shop_id AND phone = dup.phone AND id <> kept_id
+      );
+
+    -- Re-point customer_activity rows
+    UPDATE public.customer_activity
+    SET customer_id = kept_id
+    WHERE customer_id IN (
+      SELECT id FROM public.customers
+      WHERE shop_id = dup.shop_id AND phone = dup.phone AND id <> kept_id
+    );
+
+    -- Merge stats: add totals from duplicates into the canonical record
+    UPDATE public.customers
+    SET
+      total_orders = total_orders + sub.dup_orders,
+      total_spent  = total_spent  + sub.dup_spent
+    FROM (
+      SELECT
+        COALESCE(SUM(total_orders), 0) AS dup_orders,
+        COALESCE(SUM(total_spent),  0) AS dup_spent
+      FROM public.customers
+      WHERE shop_id = dup.shop_id AND phone = dup.phone AND id <> kept_id
+    ) sub
+    WHERE id = kept_id;
+
+    -- Delete the duplicate rows
+    DELETE FROM public.customers
+    WHERE shop_id = dup.shop_id AND phone = dup.phone AND id <> kept_id;
+  END LOOP;
+END;
+$$;
+
+-- ─── 3b. Add phone unique partial index ──────────────────────
+-- Safe to create now that duplicates are resolved.
 CREATE UNIQUE INDEX IF NOT EXISTS customers_shop_phone_unique
   ON public.customers(shop_id, phone)
   WHERE phone IS NOT NULL;

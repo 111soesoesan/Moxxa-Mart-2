@@ -47,7 +47,37 @@ supabase/
 ### 4.4 UI & Styling
 - **Tailwind & shadcn/ui**: Use Tailwind CSS for custom styling. Rely on existing `shadcn/ui` components located in `src/components/ui` as the primary building blocks for new interfaces.
 
-## 5. Key Integrations
+## 5. Omnichannel Customer System (migration 20260323010000)
+
+### Architecture
+Customer identity resolution works across all channels without requiring a login:
+
+- **`customers` table**: One row per customer per shop. May have `email`, `phone`, or both. `preferred_channel` tracks the first platform used.
+- **`customer_identities` table**: Links a `customer_id` to a platform identifier (e.g. WhatsApp phone, Telegram chat ID). One row per platform per customer.
+- **`getOrCreateCustomer()`** in `src/actions/customers.ts`: Unified resolution — looks up by platform identity → phone → email, backfills missing fields, and registers identities. Never generates fake guest emails.
+
+### Resolution Priority (in `getOrCreateCustomer`)
+1. Platform identity match (customer_identities table)
+2. Phone match (most useful for WhatsApp/Telegram guests)
+3. Email match (for web/authenticated users)
+4. Create new record
+
+### Triggers
+- `trg_update_customer_stats_on_order_insert` — auto-updates `total_orders`, `total_spent`, `last_order_at`, and logs activity whenever an order is inserted.
+- `trg_adjust_customer_stats_on_order_cancel` — decrements stats and logs when an order is cancelled or refunded.
+
+### UI
+- `/orders/lookup` — public phone-based order tracking page (no login required)
+- Vendor customers list — Channel badges + phone search
+- Vendor customer detail — Connected Channels card + Order History card + Activity Timeline
+
+### Passing Channel Info
+When creating an order from a non-web channel, pass `platform` and `platformId` in the `GuestInfo`:
+```ts
+createOrder({ ..., customer: { full_name, phone, platform: "whatsapp", platformId: "+6591234567" } })
+```
+
+## 6. Key Integrations
 - **Payments**: System uses structured payment methods (stored in `payment_methods` table) and editable `payment_status` flows. Legacy `payment_info` JSONB fields have been deprecated and should not be used.
 - **Product Management**: Supports variable products with attributes and variations.
 - **Inventory Trigger Refactor**: Inventory deduction/restoration is symmetrically governed by transitioning between active and inactive states.
