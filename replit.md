@@ -52,17 +52,21 @@ supabase/
 - **Product Management**: Supports variable products with attributes and variations.
 - **Inventory Trigger Refactor**: Inventory deduction/restoration is symmetrically governed by transitioning between active and inactive states.
 
-## 6. Skills & Workflows
+## 6. Replit Environment
 
-### 6.1 Essential Dev Commands
+### 6.1 Environment Variables
+The following secrets/env vars are required and are configured in Replit Secrets:
+- `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL (env var, shared)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon/public key (env var, shared)
+- `SUPABASE_SERVICE_ROLE_KEY` — Supabase service role key (secret) — never expose client-side
+- `SUPABASE_PROJECT_ID` — Supabase project ID (env var, shared)
+
+### 6.2 Essential Dev Commands
 When asked to run or test the app, use the following:
-- `npm run dev`: Start the development server
-- `npx supabase start`: Ensure local Supabase stack is running
-- `npm run db:mig`: Create a new empty migration (or use `npx supabase migration new <name>`)
-- `npm run db:push` or `npx supabase db push`: Apply migrations to the local database
-- `npm run db:types`: Regenerate TypeScript types (or `npx supabase gen types typescript --local > src/types/supabase.ts`)
+- `npm run dev`: Start the development server (port 5000)
+- `npm run build`: Build for production
 
-### 6.2 Agent Execution Workflow
+### 6.3 Agent Execution Workflow
 1. **System Understanding**: Always review this `replit.md` file and any relevant `supabase/docs/` files before beginning a task.
 2. **Feature Planning**: Draft an `implementation_plan.md` clearly outlining the proposed UI changes, backend modifications, and required database migrations. Request user review before proceeding.
 3. **Supabase Backend Modification**:
