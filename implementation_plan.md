@@ -1,36 +1,49 @@
-# Omnichannel Customer Feature Completion
+# Unified Messaging Adapter (UMA)
 
-This plan implements a unified identity resolution system to ensure consistent customer data across all interfaces (Web, WhatsApp, Telegram, etc.).
+This plan implements a centralized messaging system that aggregates Web Chat, Telegram, and Viber into a single Omni-Inbox for vendors.
 
-## Proposed Changes
+## 1. UI & Logic Allocation
 
-### Database Layer
+### Vendor Hub Integration
+- **Sidebar**: Add a "Messages" item to the [AppSidebar.tsx](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/components/dashboard/AppSidebar.tsx) navigation (under `OTHER_NAV_ITEMS`) using the `MessageSquare` icon.
+- **Shop Scoped Routing**: All messaging features are located under `/vendor/[shopSlug]/messages`. This ensures strict logical isolation between different shops owned by the same vendor.
+- **Feature Interface**: Use a tabbed interface at the top of the messages page:
+    - **Inbox Tab**: The primary Omni-Inbox (Conversation list + Active chat).
+    - **Channels Tab**: Management of messaging providers (Telegram Bot, Viber Bot, Web Chat settings).
+- **Sub-Navigation**: Within the Inbox, use a dropdown or icon-bar to filter by specific channel (e.g., "See only Telegram messages").
 
-#### [NEW] [20260323010000_omnichannel_customers.sql](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/supabase/migrations/20260323010000_omnichannel_customers.sql) [NEW]
-- **`customer_identities` Table**: Stores linkages between a `customer_id` and platform IDs (e.g., WhatsApp Phone, Telegram ID, Messenger ID).
-- **`customers` Table Update**:
-    - Ensure `email` and `phone` are both usable as identifiers.
-    - Soften unique constraints to allow identity merging (e.g., linking a phone to an existing email profile).
-    - Add `preferred_channel` for targeted notifications.
+---
 
-### Actions & Logic
+## 2. Database Schema (Supabase)
 
-#### [MODIFY] [customers.ts](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/actions/customers.ts)
-- **Unified Identity Resolution**: 
-    - Rewrite [getOrCreateCustomer](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/actions/customers.ts#282-319) to check both email and phone.
-    - Check the new `customer_identities` table for platform-specific matches.
-    - Automatically merge profiles if a customer identifier is shared (e.g., a Telegram user providing an email that already exists in the shop).
+#### [NEW] [20260324000000_uma_messaging_system.sql](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/supabase/migrations/20260324000000_uma_messaging_system.sql) [NEW]
+- **`messaging_channels`**: Store per-shop platform configs (`shop_id` FK).
+- **`messaging_conversations`**: Unified thread management (`shop_id` context via channel).
+- **`messaging_messages`**: Normalized message records.
+- **RLS Policies**: Enforce `shop_id` isolation. Vendors can only access messaging data linked to shops they own.
 
-### User Interface
+---
 
-#### [MODIFY] [Order Lookup / Dashboard]
-- **Phone-Based Lookup**: Create a simplified order lookup page accessible via phone number for guest and chat-based users.
-- **Unified Order History**: Ensure the "My Orders" view displays orders placed via any channel (Web, WhatsApp, etc.) if the identities are linked.
-- **Vendor View**: Update the customer detail page in the vendor dashboard to show all connected channels and a unified activity timeline.
+## 3. Messaging Pipelines
+
+### Inbound (Edge Functions)
+#### [NEW] [uma-webhook/index.ts](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/supabase/functions/uma-webhook/index.ts) [NEW]
+- **Identity Resolution**: Links messages to existing `customers` via `customer_identities`.
+- **Normalization**: Supports Telegram, Viber, and Web Chat payloads.
+
+### Outbound (Server Actions)
+#### [NEW] [messaging.ts](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/actions/messaging.ts) [NEW]
+- `sendMessage(conversationId, content)`: Dispatches to the correct third-party API.
+- `updateChannelSettings(shopId, platform, settings)`: Managed via the "Channels" tab.
+
+---
+
+## 4. Components
+
+#### [NEW] [OmniInbox.tsx](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/components/vendor/messaging/OmniInbox.tsx) [NEW]
+#### [NEW] [ChannelSettings.tsx](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/components/vendor/messaging/ChannelSettings.tsx) [NEW]
+#### [NEW] [WebChatWidget.tsx](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/components/storefront/WebChatWidget.tsx) [NEW]
 
 ## Verification Plan
-
-### Manual Verification
-- **Identity Merging**: Simulate a guest order via WhatsApp (phone-only) and then a web checkout with the same phone; verify they are linked to the same customer record.
-- **Cross-Platform History**: Verify that orders placed via simulated "Chat IDs" appear in the unified order history lookup.
-- **Omnichannel Profile**: Verify that `total_spent` and `total_orders` correctly aggregate across all channels.
+1. **Multi-Shop Isolation**: Create two shops and verify that Telegram messages sent to Shop A's bot do not appear in Shop B's inbox.
+2. **Tabbed Navigation**: Verify smooth switching between the Inbox and Channel Settings without full page reloads.
