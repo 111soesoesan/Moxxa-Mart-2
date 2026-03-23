@@ -1,49 +1,44 @@
-# Unified Messaging Adapter (UMA)
+# Unified Messaging Adapter (UMA) - Consumer Model
 
-This plan implements a centralized messaging system that aggregates Web Chat, Telegram, and Viber into a single Omni-Inbox for vendors.
+This plan refines the UMA implementation to act as a "Consumer" of third-party platforms. Vendors should only provide their bot tokens, and the system handles all integration, delivery, and storefront visibility.
 
-## 1. UI & Logic Allocation
+## 1. Automated Platform Handshake (Consumer Model)
 
-### Vendor Hub Integration
-- **Sidebar**: Add a "Messages" item to the [AppSidebar.tsx](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/components/dashboard/AppSidebar.tsx) navigation (under `OTHER_NAV_ITEMS`) using the `MessageSquare` icon.
-- **Shop Scoped Routing**: All messaging features are located under `/vendor/[shopSlug]/messages`. This ensures strict logical isolation between different shops owned by the same vendor.
-- **Feature Interface**: Use a tabbed interface at the top of the messages page:
-    - **Inbox Tab**: The primary Omni-Inbox (Conversation list + Active chat).
-    - **Channels Tab**: Management of messaging providers (Telegram Bot, Viber Bot, Web Chat settings).
-- **Sub-Navigation**: Within the Inbox, use a dropdown or icon-bar to filter by specific channel (e.g., "See only Telegram messages").
-
----
-
-## 2. Database Schema (Supabase)
-
-#### [NEW] [20260324000000_uma_messaging_system.sql](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/supabase/migrations/20260324000000_uma_messaging_system.sql) [NEW]
-- **`messaging_channels`**: Store per-shop platform configs (`shop_id` FK).
-- **`messaging_conversations`**: Unified thread management (`shop_id` context via channel).
-- **`messaging_messages`**: Normalized message records.
-- **RLS Policies**: Enforce `shop_id` isolation. Vendors can only access messaging data linked to shops they own.
+### Actions & Logic
+#### [MODIFY] [messaging.ts](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/actions/messaging.ts)
+- **Automatic Webhook Registration**:
+    - Update [upsertChannelSettings](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/actions/messaging.ts#77-97) to automatically call the platform's "Set Webhook" API when a token is saved.
+    - **Telegram**: Call `https://api.telegram.org/bot<token>/setWebhook?url=<webhook_url>`.
+    - **Viber**: Call `https://chatapi.viber.com/pa/set_webhook` with the appropriate JSON payload.
+- **Viber Outbound Delivery**: Implement the Viber-specific `send_message` logic in the [sendMessage](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/actions/messaging.ts#159-217) action (currently only Telegram is implemented).
 
 ---
 
-## 3. Messaging Pipelines
+## 2. Reactive Storefront Web Chat
 
-### Inbound (Edge Functions)
-#### [NEW] [uma-webhook/index.ts](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/supabase/functions/uma-webhook/index.ts) [NEW]
-- **Identity Resolution**: Links messages to existing `customers` via `customer_identities`.
-- **Normalization**: Supports Telegram, Viber, and Web Chat payloads.
-
-### Outbound (Server Actions)
-#### [NEW] [messaging.ts](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/actions/messaging.ts) [NEW]
-- `sendMessage(conversationId, content)`: Dispatches to the correct third-party API.
-- `updateChannelSettings(shopId, platform, settings)`: Managed via the "Channels" tab.
+#### [MODIFY] [WebChatWidget.tsx](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/components/storefront/WebChatWidget.tsx)
+- **Real-Time Visibility**: Instead of just sending messages, the widget must now *consume* them.
+- Use Supabase Realtime to subscribe to the `messaging_messages` table for the current `session_id`'s `conversation_id`.
+- **Toggle Usage**: The widget should only be rendered if the `webchat` channel is enabled and `is_active` for the specific shop.
 
 ---
 
-## 4. Components
+## 3. UI Refinements (Vendor Side)
 
-#### [NEW] [OmniInbox.tsx](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/components/vendor/messaging/OmniInbox.tsx) [NEW]
-#### [NEW] [ChannelSettings.tsx](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/components/vendor/messaging/ChannelSettings.tsx) [NEW]
-#### [NEW] [WebChatWidget.tsx](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/components/storefront/WebChatWidget.tsx) [NEW]
+#### [MODIFY] [ChannelSettings.tsx](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/components/vendor/messaging/ChannelSettings.tsx)
+- **Simplify**: Remove the "Webhook URL" display and instructions for manual registration.
+- **Add**: A "Test Connection" button that validates the token and confirms webhook registration status.
+- **Clarify**: Ensure the "Enable" switch clearly states it will toggle visibility on the storefront (for Web Chat) or the bot's responsiveness (for Telegram/Viber).
+
+---
+
+## 4. Logical Cleanup (UMA Webhook)
+
+#### [MODIFY] [index.ts](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/supabase/functions/uma-webhook/index.ts)
+- **Security**: Validate that incoming requests truly come from the platform (e.g., checking IP ranges for Telegram or validating the Viber signature header).
+- **Graceful Failures**: Ensure the webhook returns a 200 OK even if normalization fails, to prevent the platform from retrying and flooding the function.
 
 ## Verification Plan
-1. **Multi-Shop Isolation**: Create two shops and verify that Telegram messages sent to Shop A's bot do not appear in Shop B's inbox.
-2. **Tabbed Navigation**: Verify smooth switching between the Inbox and Channel Settings without full page reloads.
+1. **Automated Registration**: Save a Telegram token and verify via the Telegram API (`getWebhookInfo`) that the webhook was correctly set.
+2. **End-to-End Viber**: Reply to a Viber message from the Omni-Inbox and verify delivery.
+3. **Consumer Web Chat**: Message as a guest, receive a reply from the vendor, and verify it appears in the widget without a page reload.
