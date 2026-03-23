@@ -38,7 +38,10 @@ async function hmacSha256Hex(key: string, data: string): Promise<string> {
     .join("");
 }
 
-function normalizeTelegram(body: Record<string, unknown>): NormalizedMessage | null {
+async function normalizeTelegram(
+  body: Record<string, unknown>,
+  botToken: string | null
+): Promise<NormalizedMessage | null> {
   const message = (body.message ?? body.edited_message ?? body.channel_post) as
     | Record<string, unknown>
     | undefined;
@@ -59,19 +62,63 @@ function normalizeTelegram(body: Record<string, unknown>): NormalizedMessage | n
 
   let content = "";
   let contentType: NormalizedMessage["content_type"] = "text";
+  let caption = "";
 
   if (message.text) {
     content = String(message.text);
     contentType = "text";
   } else if (message.photo) {
-    content = String((message.caption as string) ?? "[Photo]");
     contentType = "image";
+    caption = String((message.caption as string) ?? "");
+    if (botToken) {
+      const photos = message.photo as Array<Record<string, unknown>> | undefined;
+      const best = photos?.[photos.length - 1];
+      const fileId = best ? String(best.file_id ?? "") : "";
+      if (fileId) {
+        try {
+          const fileRes = await fetch(
+            `https://api.telegram.org/bot${botToken}/getFile?file_id=${encodeURIComponent(fileId)}`
+          );
+          const fileJson = (await fileRes.json()) as {
+            result?: { file_path?: string };
+          } | null;
+          const filePath = fileJson?.result?.file_path;
+          if (filePath) content = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
+        } catch {
+          // fall back to placeholder below
+        }
+      }
+    }
+    if (!content) content = "[Photo]";
   } else if (message.sticker) {
     content = "[Sticker]";
     contentType = "sticker";
   } else if (message.document) {
-    content = String((message.caption as string) ?? "[File]");
-    contentType = "file";
+    const doc = message.document as Record<string, unknown>;
+    const mimeType = String(doc?.mime_type ?? "");
+    caption = String((message.caption as string) ?? "");
+    if (mimeType.startsWith("image/") && botToken) {
+      contentType = "image";
+      const fileId = String(doc?.file_id ?? "");
+      if (fileId) {
+        try {
+          const fileRes = await fetch(
+            `https://api.telegram.org/bot${botToken}/getFile?file_id=${encodeURIComponent(fileId)}`
+          );
+          const fileJson = (await fileRes.json()) as {
+            result?: { file_path?: string };
+          } | null;
+          const filePath = fileJson?.result?.file_path;
+          if (filePath) content = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
+        } catch {
+          // fall back to placeholder below
+        }
+      }
+      if (!content) content = "[Photo]";
+    } else {
+      content = String((message.caption as string) ?? "[File]");
+      contentType = "file";
+    }
   } else {
     content = "[Unsupported message type]";
   }
@@ -87,7 +134,10 @@ function normalizeTelegram(body: Record<string, unknown>): NormalizedMessage | n
       : undefined,
     content,
     content_type: contentType,
-    metadata: { raw: body },
+    metadata: {
+      raw: body,
+      ...(caption ? { caption } : {}),
+    },
   };
 }
 
@@ -105,14 +155,19 @@ function normalizeViber(body: Record<string, unknown>): NormalizedMessage | null
 
   let content = "";
   let contentType: NormalizedMessage["content_type"] = "text";
+  let caption = "";
 
   const msgType = String(message.type ?? "text");
   if (msgType === "text") {
     content = String(message.text ?? "");
     contentType = "text";
   } else if (msgType === "picture") {
-    content = String(message.text ?? "[Photo]");
     contentType = "image";
+    caption = String(message.text ?? "");
+    const media =
+      (message as Record<string, unknown>).media ??
+      (message as Record<string, unknown>).media_url;
+    content = media ? String(media) : "[Photo]";
   } else if (msgType === "file") {
     content = String(message.file_name ?? "[File]");
     contentType = "file";
@@ -132,7 +187,10 @@ function normalizeViber(body: Record<string, unknown>): NormalizedMessage | null
     sender_avatar: avatar,
     content,
     content_type: contentType,
-    metadata: { raw: body },
+    metadata: {
+      raw: body,
+      ...(caption ? { caption } : {}),
+    },
   };
 }
 
@@ -203,7 +261,9 @@ Deno.serve(async (req: Request) => {
 
     let normalized: NormalizedMessage | null = null;
     if (platform === "telegram") {
-      normalized = normalizeTelegram(body);
+      normalized = await normalizeTelegram(body, (config["bot_token"] ?? null) as
+        | string
+        | null);
     } else if (platform === "viber") {
       normalized = normalizeViber(body);
     } else if (platform === "webchat") {

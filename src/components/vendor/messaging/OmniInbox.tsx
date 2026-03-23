@@ -12,6 +12,7 @@ import {
   type MessagingMessage,
   type MessagingPlatform,
 } from "@/actions/messaging";
+import { uploadChatImage } from "@/lib/supabase/storage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -27,11 +28,13 @@ import { cn } from "@/lib/utils";
 import {
   Send,
   MessageSquare,
+  X,
   Filter,
   MoreVertical,
   CheckCheck,
   Archive,
   RefreshCw,
+  Paperclip,
 } from "lucide-react";
 
 const PLATFORM_META: Record<
@@ -63,12 +66,15 @@ export function OmniInbox({ shopId }: Props) {
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessagingMessage[]>([]);
   const [draftText, setDraftText] = useState("");
+  const [attachedImage, setAttachedImage] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [loadingConvs, setLoadingConvs] = useState(true);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [platformFilter, setPlatformFilter] = useState<MessagingPlatform | "all">("all");
   const [statusFilter, setStatusFilter] = useState<"open" | "resolved" | "archived">("open");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
   const supabase = createClient();
 
   const activeConv = conversations.find((c) => c.id === activeConvId) ?? null;
@@ -123,6 +129,10 @@ export function OmniInbox({ shopId }: Props) {
       prev.map((c) => (c.id === activeConvId ? { ...c, unread_count: 0 } : c))
     );
 
+    // Reset composer attachment when switching conversations.
+    setAttachedImage(null);
+    setImagePreviewUrl(null);
+
     const channel = supabase
       .channel(`messages-${activeConvId}`)
       .on(
@@ -143,13 +153,50 @@ export function OmniInbox({ shopId }: Props) {
     return () => { supabase.removeChannel(channel); };
   }, [activeConvId]);
 
+  useEffect(() => {
+    if (!imagePreviewUrl) return;
+    return () => {
+      URL.revokeObjectURL(imagePreviewUrl);
+    };
+  }, [imagePreviewUrl]);
+
   const handleSend = async () => {
-    if (!activeConvId || !draftText.trim() || sending) return;
+    if (!activeConvId || sending) return;
+
+    const caption = draftText.trim();
+
+    // Send image when attached.
+    if (attachedImage) {
+      setSending(true);
+      try {
+        const imageUrl = await uploadChatImage(attachedImage, shopId, activeConvId);
+        await sendMessage(activeConvId, {
+          content: imageUrl,
+          contentType: "image",
+          caption: caption || undefined,
+        });
+
+        setDraftText("");
+        setAttachedImage(null);
+        setImagePreviewUrl(null);
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
+    // Send text when no image is attached.
+    if (!caption) return;
     setSending(true);
-    const text = draftText.trim();
-    setDraftText("");
-    await sendMessage(activeConvId, text);
-    setSending(false);
+    try {
+      await sendMessage(activeConvId, {
+        content: caption,
+        contentType: "text",
+      });
+      setDraftText("");
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -335,6 +382,13 @@ export function OmniInbox({ shopId }: Props) {
               <div className="space-y-2">
                 {messages.map((msg) => {
                   const isOutbound = msg.direction === "outbound";
+                  const isImage =
+                    msg.content_type === "image" &&
+                    typeof msg.content === "string" &&
+                    /^https?:\/\//i.test(msg.content);
+                  const caption =
+                    (msg.metadata as { caption?: string | null } | null | undefined)?.caption ??
+                    null;
                   return (
                     <div
                       key={msg.id}
@@ -348,7 +402,21 @@ export function OmniInbox({ shopId }: Props) {
                             : "bg-muted rounded-bl-sm"
                         )}
                       >
-                        <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                        {isImage ? (
+                          <div className="space-y-2">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={msg.content}
+                              alt="Attachment"
+                              className="max-w-full max-h-56 object-cover rounded-xl"
+                            />
+                            {caption ? (
+                              <p className="whitespace-pre-wrap break-words">{caption}</p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                        )}
                         <p
                           className={cn(
                             "text-[10px] mt-1",
@@ -371,6 +439,18 @@ export function OmniInbox({ shopId }: Props) {
 
           {/* Compose */}
           <div className="p-3 border-t flex items-end gap-2">
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                setAttachedImage(f);
+                if (f) setImagePreviewUrl(URL.createObjectURL(f));
+                else setImagePreviewUrl(null);
+              }}
+            />
             <Input
               placeholder="Type a message…"
               value={draftText}
@@ -381,8 +461,42 @@ export function OmniInbox({ shopId }: Props) {
             />
             <Button
               size="icon"
+              variant="outline"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={sending}
+              title="Attach image"
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
+            {imagePreviewUrl ? (
+              <div className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imagePreviewUrl}
+                  alt="Preview"
+                  className="w-10 h-10 rounded-lg object-cover border bg-background"
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="absolute -top-2 -right-2 h-7 w-7 rounded-full bg-background/90"
+                  onClick={() => {
+                    setAttachedImage(null);
+                    setImagePreviewUrl(null);
+                    if (imageInputRef.current) imageInputRef.current.value = "";
+                  }}
+                  disabled={sending}
+                  title="Remove image"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : null}
+            <Button
+              size="icon"
               onClick={handleSend}
-              disabled={!draftText.trim() || sending}
+              disabled={(attachedImage ? false : !draftText.trim()) || sending}
             >
               <Send className="h-4 w-4" />
             </Button>

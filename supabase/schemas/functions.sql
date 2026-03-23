@@ -629,3 +629,98 @@ RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER STABLE AS $$
     WHERE id = auth.uid() AND role = 'admin'
   );
 $$;
+
+
+-- ─── update_customer_stats_on_order_insert ───────────────────
+-- Auto-updates customer total_orders, total_spent, and last_order_at.
+-- Also logs the activity in public.customer_activity.
+CREATE OR REPLACE FUNCTION public.update_customer_stats_on_order_insert()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  IF NEW.customer_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  UPDATE public.customers
+  SET
+    total_orders  = total_orders + 1,
+    total_spent   = total_spent + NEW.total,
+    last_order_at = NEW.created_at,
+    first_order_at = COALESCE(first_order_at, NEW.created_at),
+    updated_at    = NOW()
+  WHERE id = NEW.customer_id;
+
+  INSERT INTO public.customer_activity (customer_id, activity_type, reference_id, description, metadata)
+  VALUES (
+    NEW.customer_id,
+    'order',
+    NEW.id,
+    'Order placed for ' || NEW.total || ' (Order #' || substring(NEW.id::text, 1, 8) || ')',
+    jsonb_build_object(
+      'order_id',   NEW.id,
+      'total',      NEW.total,
+      'shop_id',    NEW.shop_id,
+      'status',     NEW.status,
+      'channel',    COALESCE(NEW.customer_snapshot->>'channel', 'web')
+    )
+  );
+
+  RETURN NEW;
+END;
+$$;
+
+
+-- ─── adjust_customer_stats_on_order_cancel ─────────────────
+-- Decrements customer stats when an order is cancelled or refunded.
+CREATE OR REPLACE FUNCTION public.adjust_customer_stats_on_order_cancel()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  IF NEW.status NOT IN ('cancelled', 'refunded') THEN
+    RETURN NEW;
+  END IF;
+  IF OLD.status IN ('cancelled', 'refunded') THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.customer_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  UPDATE public.customers
+  SET
+    total_orders = GREATEST(0, total_orders - 1),
+    total_spent  = GREATEST(0, total_spent - NEW.total),
+    updated_at   = NOW()
+  WHERE id = NEW.customer_id;
+
+  INSERT INTO public.customer_activity (customer_id, activity_type, reference_id, description, metadata)
+  VALUES (
+    NEW.customer_id,
+    'order',
+    NEW.id,
+    'Order ' || NEW.status || ' (Order #' || substring(NEW.id::text, 1, 8) || ')',
+    jsonb_build_object('order_id', NEW.id, 'status', NEW.status, 'total', NEW.total)
+  );
+
+  RETURN NEW;
+END;
+$$;
+
+
+-- ─── update_conversation_on_message_insert ───────────────
+-- Updates parent conversation's last_message_at and preview.
+CREATE OR REPLACE FUNCTION public.update_conversation_on_message_insert()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  UPDATE public.messaging_conversations
+  SET
+    last_message_at      = NEW.created_at,
+    last_message_preview = LEFT(NEW.content, 120),
+    unread_count         = CASE
+                             WHEN NEW.direction = 'inbound' THEN unread_count + 1
+                             ELSE unread_count
+                           END,
+    updated_at           = NOW()
+  WHERE id = NEW.conversation_id;
+  RETURN NEW;
+END;
+$$;

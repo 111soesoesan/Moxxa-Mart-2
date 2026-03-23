@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
 import { getShopBySlug } from "@/actions/shops";
+import { createServiceClient } from "@/lib/supabase/server";
 import { ShopHeader } from "@/components/shop/ShopHeader";
 import { PromotionBar } from "@/components/shop/PromotionBar";
 import { ShopSecondaryNav } from "@/components/shop/ShopSecondaryNav";
+import { WebChatWidget } from "@/components/storefront/WebChatWidget";
 
 type Props = {
   children: React.ReactNode;
@@ -13,6 +15,18 @@ export default async function ShopLayout({ children, params }: Props) {
   const { slug } = await params;
   const shop = await getShopBySlug(slug);
   if (!shop) notFound();
+
+  // Generated Supabase types in this repo may lag behind the DB schema for messaging tables.
+  // Cast to `any` for this storefront visibility check.
+  const supabase = (await createServiceClient()) as any;
+  const { data: channel } = await supabase
+    .from("messaging_channels")
+    .select("id, is_active")
+    .eq("shop_id", shop.id)
+    .eq("platform", "webchat")
+    .single();
+
+  const webchatActive = channel?.is_active ?? false;
 
   return (
     <div>
@@ -30,6 +44,8 @@ export default async function ShopLayout({ children, params }: Props) {
       <ShopSecondaryNav shopSlug={shop.slug} />
 
       {children}
+
+      {webchatActive && <WebChatWidget shopSlug={shop.slug} shopName={shop.name} />}
     </div>
   );
 }

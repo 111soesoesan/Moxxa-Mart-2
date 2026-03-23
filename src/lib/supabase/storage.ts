@@ -2,7 +2,12 @@
 
 import { createClient } from "./client";
 
-type Bucket = "product-images" | "shop-assets" | "payment-proofs" | "billing-proofs";
+type Bucket =
+  | "product-images"
+  | "shop-assets"
+  | "payment-proofs"
+  | "billing-proofs"
+  | "chat-images";
 
 async function uploadFile(bucket: Bucket, path: string, file: File): Promise<string> {
   const supabase = createClient();
@@ -63,4 +68,15 @@ export async function uploadBillingProof(file: File, shopId: string): Promise<st
   if (error) throw new Error(error.message);
   const { data: signedUrl } = await supabase.storage.from("billing-proofs").createSignedUrl(data.path, 60 * 60 * 24 * 7);
   return signedUrl?.signedUrl ?? "";
+}
+
+export async function uploadChatImage(
+  file: File,
+  shopId: string,
+  conversationId: string
+): Promise<string> {
+  const ext = file.name.split(".").pop() ?? "png";
+  // Deterministic-ish path for organization; uniqueness comes from the object name timestamp.
+  const path = `${shopId}/conversations/${conversationId}/${Date.now()}_${crypto.randomUUID()}.${ext}`;
+  return uploadFile("chat-images", path, file);
 }

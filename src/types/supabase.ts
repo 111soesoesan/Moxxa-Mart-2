@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       attribute_items: {
@@ -319,6 +344,41 @@ export type Database = {
           },
         ]
       }
+      customer_identities: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          metadata: Json | null
+          platform: string
+          platform_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          metadata?: Json | null
+          platform: string
+          platform_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          metadata?: Json | null
+          platform?: string
+          platform_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_identities_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           created_at: string
@@ -328,6 +388,7 @@ export type Database = {
           last_order_at: string | null
           name: string
           phone: string | null
+          preferred_channel: string
           shop_id: string
           total_orders: number
           total_spent: number
@@ -342,6 +403,7 @@ export type Database = {
           last_order_at?: string | null
           name: string
           phone?: string | null
+          preferred_channel?: string
           shop_id: string
           total_orders?: number
           total_spent?: number
@@ -356,6 +418,7 @@ export type Database = {
           last_order_at?: string | null
           name?: string
           phone?: string | null
+          preferred_channel?: string
           shop_id?: string
           total_orders?: number
           total_spent?: number
@@ -493,6 +556,164 @@ export type Database = {
             columns: ["inventory_id"]
             isOneToOne: false
             referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messaging_channels: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          is_active: boolean
+          platform: string
+          shop_id: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          platform: string
+          shop_id: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          platform?: string
+          shop_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messaging_channels_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messaging_conversations: {
+        Row: {
+          channel_id: string | null
+          created_at: string
+          customer_avatar: string | null
+          customer_id: string | null
+          customer_name: string | null
+          id: string
+          last_message_at: string | null
+          last_message_preview: string | null
+          platform: string
+          platform_conversation_id: string | null
+          shop_id: string
+          status: string
+          unread_count: number
+          updated_at: string
+        }
+        Insert: {
+          channel_id?: string | null
+          created_at?: string
+          customer_avatar?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          id?: string
+          last_message_at?: string | null
+          last_message_preview?: string | null
+          platform: string
+          platform_conversation_id?: string | null
+          shop_id: string
+          status?: string
+          unread_count?: number
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string | null
+          created_at?: string
+          customer_avatar?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          id?: string
+          last_message_at?: string | null
+          last_message_preview?: string | null
+          platform?: string
+          platform_conversation_id?: string | null
+          shop_id?: string
+          status?: string
+          unread_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messaging_conversations_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "messaging_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messaging_conversations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messaging_conversations_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messaging_messages: {
+        Row: {
+          content: string
+          content_type: string
+          conversation_id: string
+          created_at: string
+          direction: string
+          id: string
+          metadata: Json | null
+          platform_message_id: string | null
+          sender_id: string | null
+          sender_name: string | null
+        }
+        Insert: {
+          content: string
+          content_type?: string
+          conversation_id: string
+          created_at?: string
+          direction: string
+          id?: string
+          metadata?: Json | null
+          platform_message_id?: string | null
+          sender_id?: string | null
+          sender_name?: string | null
+        }
+        Update: {
+          content?: string
+          content_type?: string
+          conversation_id?: string
+          created_at?: string
+          direction?: string
+          id?: string
+          metadata?: Json | null
+          platform_message_id?: string | null
+          sender_id?: string | null
+          sender_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messaging_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "messaging_conversations"
             referencedColumns: ["id"]
           },
         ]
@@ -998,22 +1219,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      try_reserve_inventory_line: {
-        Args: {
-          p_product_id: string
-          p_variation_id: string | null
-          p_qty: number
-        }
-        Returns: boolean
-      }
-      release_inventory_reservation_line: {
-        Args: {
-          p_product_id: string
-          p_variation_id: string | null
-          p_qty: number
-        }
-        Returns: null
-      }
       is_admin: { Args: never; Returns: boolean }
       manual_inventory_update: {
         Args: {
@@ -1025,6 +1230,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      release_inventory_reservation_line: {
+        Args: { p_product_id: string; p_qty: number; p_variation_id: string }
+        Returns: undefined
+      }
       restore_inventory_on_cancel: {
         Args: {
           p_inventory_id: string
@@ -1032,6 +1241,10 @@ export type Database = {
           p_quantity: number
           p_user_id?: string
         }
+        Returns: boolean
+      }
+      try_reserve_inventory_line: {
+        Args: { p_product_id: string; p_qty: number; p_variation_id: string }
         Returns: boolean
       }
       update_customer_stats_on_order: {
@@ -1175,6 +1388,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },

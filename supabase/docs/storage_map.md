@@ -13,6 +13,7 @@ Supabase Storage is used for all user-uploaded media. Files are stored as object
 | `blog-images` | ✅ Yes | Blog post images (created via Dashboard) |
 | `payment-proofs` | ❌ No | Customer payment proof uploads (bank transfer receipts) |
 | `billing-proofs` | ❌ No | Vendor billing proof uploads (subscription payments) |
+| `chat-images` | ✅ Yes | User/Bot uploaded images in chat conversations |
 
 ---
 
@@ -41,6 +42,11 @@ Supabase Storage is used for all user-uploaded media. Files are stored as object
 - **Read**: Authenticated users only
 - **Upload**: Authenticated users only — vendors upload their subscription payment screenshots
 
+### chat-images (Public)
+- **Read**: Anyone — public URLs for displaying images in chat UI
+- **Upload**: Authenticated users (vendors) or Service Role (bots)
+- **Delete**: Authenticated users or Service Role
+
 ---
 
 ## File Path Conventions
@@ -54,6 +60,7 @@ shop-assets/     <shop_slug>/cover.<ext>
 shop-assets/     <shop_slug>/banner.<ext>
 payment-proofs/  <order_id>/<filename>
 billing-proofs/  <shop_id>/<filename>
+chat-images/     <conv_id>/<filename>
 ```
 
 Public URLs are constructed as:

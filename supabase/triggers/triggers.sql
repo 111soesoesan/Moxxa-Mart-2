@@ -142,8 +142,32 @@ CREATE TRIGGER customer_update_timestamp
   EXECUTE FUNCTION public.trigger_customer_update_timestamp();
 
 
+-- ─── orders: auto-update customer stats ─────────────────────
+DROP TRIGGER IF EXISTS trg_update_customer_stats_on_order_insert ON public.orders;
+CREATE TRIGGER trg_update_customer_stats_on_order_insert
+  AFTER INSERT ON public.orders
+  FOR EACH ROW
+  EXECUTE FUNCTION public.update_customer_stats_on_order_insert();
+
+
+-- ─── orders: adjust customer stats on cancel ────────────────
+DROP TRIGGER IF EXISTS trg_adjust_customer_stats_on_order_cancel ON public.orders;
+CREATE TRIGGER trg_adjust_customer_stats_on_order_cancel
+  AFTER UPDATE OF status ON public.orders
+  FOR EACH ROW
+  EXECUTE FUNCTION public.adjust_customer_stats_on_order_cancel();
+
+
+-- ─── messaging_messages: auto-update conversation ──────────
+DROP TRIGGER IF EXISTS trg_update_conversation_on_message_insert ON public.messaging_messages;
+CREATE TRIGGER trg_update_conversation_on_message_insert
+  AFTER INSERT ON public.messaging_messages
+  FOR EACH ROW
+  EXECUTE FUNCTION public.update_conversation_on_message_insert();
+
+
 -- ============================================================
--- TRIGGER MAP SUMMARY
+-- TRIGGER MAP SUMMARY (EXTENDED)
 -- ============================================================
 --
 --  auth.users
@@ -166,6 +190,8 @@ CREATE TRIGGER customer_update_timestamp
 --
 --  public.orders
 --    BEFORE UPDATE → set_orders_updated_at          → set_updated_at()
+--    AFTER  INSERT → trg_update_customer_stats_on_order_insert → update_customer_stats_on_order_insert()
+--    AFTER  UPDATE → trg_adjust_customer_stats_on_order_cancel → adjust_customer_stats_on_order_cancel()
 --    AFTER  UPDATE → deduct_inventory_on_order_confirmed → deduct_inventory_on_confirmation()
 --    AFTER  UPDATE → restore_inventory_on_order_cancelled → restore_inventory_on_cancel()
 --
@@ -184,3 +210,6 @@ CREATE TRIGGER customer_update_timestamp
 --
 --  public.customers
 --    BEFORE UPDATE → customer_update_timestamp      → trigger_customer_update_timestamp()
+--
+--  public.messaging_messages
+--    AFTER INSERT  → trg_update_conversation_on_message_insert → update_conversation_on_message_insert()

@@ -65,3 +65,26 @@ CREATE POLICY "billing_proofs_auth_upload"
 CREATE POLICY "billing_proofs_auth_read"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'billing-proofs' AND auth.role() = 'authenticated');
+
+
+-- ─── chat-images (PUBLIC bucket) ──────────────────────────
+-- Anyone can read chat images (front-end display).
+CREATE POLICY "chat_images_public_read"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'chat-images');
+
+-- Vendors (authenticated) can upload; server-side uploads use service_role.
+CREATE POLICY "chat_images_insert_authenticated_or_service"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'chat-images'
+    AND auth.role() IN ('authenticated', 'service_role')
+  );
+
+-- Vendors (authenticated) or service_role can delete.
+CREATE POLICY "chat_images_delete_authenticated_or_service"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'chat-images'
+    AND auth.role() IN ('authenticated', 'service_role')
+  );

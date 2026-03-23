@@ -26,3 +26,8 @@ INSERT INTO storage.buckets (id, name, public)
 INSERT INTO storage.buckets (id, name, public)
   VALUES ('billing-proofs', 'billing-proofs', FALSE)
   ON CONFLICT (id) DO NOTHING;
+
+-- Messaging buckets
+INSERT INTO storage.buckets (id, name, public)
+  VALUES ('chat-images', 'chat-images', TRUE)
+  ON CONFLICT (id) DO NOTHING;

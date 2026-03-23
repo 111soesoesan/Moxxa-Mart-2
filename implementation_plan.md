@@ -1,44 +1,41 @@
-# Unified Messaging Adapter (UMA) - Consumer Model
+# Unified Messaging Adapter (UMA) - Storefront Personalization
 
-This plan refines the UMA implementation to act as a "Consumer" of third-party platforms. Vendors should only provide their bot tokens, and the system handles all integration, delivery, and storefront visibility.
+This plan addresses the persistence and visibility of the Web Chat widget for customers, ensuring each shop has a unique and consistent chat history.
 
-## 1. Automated Platform Handshake (Consumer Model)
+## 1. Storefront Integration & Visibility
 
-### Actions & Logic
-#### [MODIFY] [messaging.ts](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/actions/messaging.ts)
-- **Automatic Webhook Registration**:
-    - Update [upsertChannelSettings](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/actions/messaging.ts#77-97) to automatically call the platform's "Set Webhook" API when a token is saved.
-    - **Telegram**: Call `https://api.telegram.org/bot<token>/setWebhook?url=<webhook_url>`.
-    - **Viber**: Call `https://chatapi.viber.com/pa/set_webhook` with the appropriate JSON payload.
-- **Viber Outbound Delivery**: Implement the Viber-specific `send_message` logic in the [sendMessage](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/actions/messaging.ts#159-217) action (currently only Telegram is implemented).
+### Layout Integration
+- **Shop Layout**: Add the [WebChatWidget](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/components/storefront/WebChatWidget.tsx#40-291) to `src/app/(customer)/shop/[slug]/layout.tsx`.
+- **Conditional Rendering**: The widget must call `GET /api/webchat` on mount to check the `is_active` status for the specific shop. If disabled, the widget should return `null`.
 
 ---
 
-## 2. Reactive Storefront Web Chat
+## 2. Conversation Persistence & History
 
+### Webchat API Enhancement
+#### [MODIFY] [route.ts](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/app/api/webchat/route.ts)
+- **GET Request**:
+    - Extend to accept `session_id`.
+    - If a matching `messaging_conversations` record exists for the `session_id` + `shop_slug`, return:
+        - `conversation_id`
+        - `customer_name`
+        - `history` (The last 20 messages from `messaging_messages`).
+
+### Widget Logic (Consistent Chat)
 #### [MODIFY] [WebChatWidget.tsx](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/components/storefront/WebChatWidget.tsx)
-- **Real-Time Visibility**: Instead of just sending messages, the widget must now *consume* them.
-- Use Supabase Realtime to subscribe to the `messaging_messages` table for the current `session_id`'s `conversation_id`.
-- **Toggle Usage**: The widget should only be rendered if the `webchat` channel is enabled and `is_active` for the specific shop.
+- **Hybrid Persistence**:
+    - **Local State**: Store the `session_id` and `customer_name` in `localStorage` keyed by `shop_slug`.
+    - **History Sync**: On initialization, if a `session_id` exists, fetch the conversation history from the API and populate the `messages` state.
+    - **Local Cache**: For instant loading, optionally cache the last 5 messages in `localStorage` to show while waitng for the server-response.
+- **Real-time Sync**: Ensure the Supabase Realtime subscription uses the `conversation_id` returned from the initial history fetch.
 
 ---
 
-## 3. UI Refinements (Vendor Side)
-
-#### [MODIFY] [ChannelSettings.tsx](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/src/components/vendor/messaging/ChannelSettings.tsx)
-- **Simplify**: Remove the "Webhook URL" display and instructions for manual registration.
-- **Add**: A "Test Connection" button that validates the token and confirms webhook registration status.
-- **Clarify**: Ensure the "Enable" switch clearly states it will toggle visibility on the storefront (for Web Chat) or the bot's responsiveness (for Telegram/Viber).
-
----
-
-## 4. Logical Cleanup (UMA Webhook)
-
-#### [MODIFY] [index.ts](file:///Users/saiaungkham/Documents/Web%20Dev/Moxxa%20Mart/moxxa-mart2/supabase/functions/uma-webhook/index.ts)
-- **Security**: Validate that incoming requests truly come from the platform (e.g., checking IP ranges for Telegram or validating the Viber signature header).
-- **Graceful Failures**: Ensure the webhook returns a 200 OK even if normalization fails, to prevent the platform from retrying and flooding the function.
+## 3. UI Refinements
+- **Badge/Status**: Show a "Connecting..." status in the widget header while history is fetching.
+- **Auto-scroll**: Ensure the widget always scrolls to the most recent message upon history load or new message receipt.
 
 ## Verification Plan
-1. **Automated Registration**: Save a Telegram token and verify via the Telegram API (`getWebhookInfo`) that the webhook was correctly set.
-2. **End-to-End Viber**: Reply to a Viber message from the Omni-Inbox and verify delivery.
-3. **Consumer Web Chat**: Message as a guest, receive a reply from the vendor, and verify it appears in the widget without a page reload.
+1. **Per-Shop Consistency**: Chat in Shop A -> verify messages are saved -> navigate to Shop B -> verify Shop B is empty -> return to Shop A -> verify messages reappear.
+2. **Toggle Visibility**: Disable Web Chat in Shop A settings -> verify widget disappears from storefront -> re-enable -> verify widget and history return.
+3. **Real-time Feed**: Test message delivery from vendor to customer and ensure history persists across refreshing the browser.

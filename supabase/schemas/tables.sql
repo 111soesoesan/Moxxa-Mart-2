@@ -360,3 +360,57 @@ CREATE TABLE IF NOT EXISTS public.product_variations (
   created_at            TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   updated_at            TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
+
+
+-- ─── MESSAGING CHANNELS ─────────────────────────────────────
+-- Stores per-shop platform configurations.
+CREATE TABLE IF NOT EXISTS public.messaging_channels (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  shop_id     UUID        NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE,
+  platform    TEXT        NOT NULL
+                CHECK (platform IN ('telegram', 'viber', 'webchat')),
+  is_active   BOOLEAN     NOT NULL DEFAULT FALSE,
+  config      JSONB       NOT NULL DEFAULT '{}',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (shop_id, platform)
+);
+
+
+-- ─── MESSAGING CONVERSATIONS ────────────────────────────────
+-- Scoped to shop + channel. Unique per external conversation ID.
+CREATE TABLE IF NOT EXISTS public.messaging_conversations (
+  id                      UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  shop_id                 UUID        NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE,
+  channel_id              UUID        REFERENCES public.messaging_channels(id) ON DELETE SET NULL,
+  customer_id             UUID        REFERENCES public.customers(id) ON DELETE SET NULL,
+  platform                TEXT        NOT NULL
+                                CHECK (platform IN ('telegram', 'viber', 'webchat')),
+  platform_conversation_id TEXT,
+  customer_name           TEXT,
+  customer_avatar         TEXT,
+  last_message_at         TIMESTAMPTZ,
+  last_message_preview    TEXT,
+  unread_count            INTEGER     NOT NULL DEFAULT 0,
+  status                  TEXT        NOT NULL DEFAULT 'open'
+                                CHECK (status IN ('open', 'resolved', 'archived')),
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (channel_id, platform_conversation_id)
+);
+
+
+-- ─── MESSAGING MESSAGES ────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.messaging_messages (
+  id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id     UUID        NOT NULL REFERENCES public.messaging_conversations(id) ON DELETE CASCADE,
+  direction           TEXT        NOT NULL CHECK (direction IN ('inbound', 'outbound')),
+  sender_id           TEXT,
+  sender_name         TEXT,
+  content             TEXT        NOT NULL,
+  content_type        TEXT        NOT NULL DEFAULT 'text'
+                        CHECK (content_type IN ('text', 'image', 'file', 'sticker')),
+  platform_message_id TEXT,
+  metadata            JSONB,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

@@ -53,7 +53,9 @@ async function releasePendingReservationsForSnapshot(
 
     await svc.rpc("release_inventory_reservation_line", {
       p_product_id: item.product_id,
-      p_variation_id: vidRaw || null,
+      // Supabase codegen currently types p_variation_id as string only,
+      // but the function accepts NULL. Cast to satisfy TS while sending null at runtime.
+      p_variation_id: (vidRaw || null) as unknown as string,
       p_qty: item.quantity,
     });
   }
@@ -87,7 +89,8 @@ async function reserveInventoryForOrderItems(
 
     const { data: ok, error } = await svc.rpc("try_reserve_inventory_line", {
       p_product_id: item.product_id,
-      p_variation_id: vidRaw || null,
+      // See note above on the cast for optional variation id.
+      p_variation_id: (vidRaw || null) as unknown as string,
       p_qty: item.quantity,
     });
     if (error) return error.message;

@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import type { Json } from "@/types/supabase";
 import { revalidatePath } from "next/cache";
 
 export type MessagingPlatform = "telegram" | "viber" | "webchat";
@@ -104,7 +105,8 @@ export async function upsertChannelSettings(
       {
         shop_id: shopId,
         platform,
-        config: finalConfig,
+        // Cast to Supabase Json type to satisfy generated typings
+        config: finalConfig as Json,
         is_active: isActive,
         updated_at: new Date().toISOString(),
       },
@@ -315,7 +317,7 @@ export async function getMessages(
 
 export async function sendMessage(
   conversationId: string,
-  content: string
+  payload: { content: string; contentType: MessagingMessage["content_type"]; caption?: string }
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -337,13 +339,19 @@ export async function sendMessage(
 
   if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
 
+  const metadata =
+    payload.caption && payload.caption.trim()
+      ? { caption: payload.caption.trim().slice(0, 512) }
+      : null;
+
   const { error: msgErr } = await supabase.from("messaging_messages").insert({
     conversation_id: conversationId,
     direction: "outbound",
     sender_id: user.id,
     sender_name: "Vendor",
-    content,
-    content_type: "text",
+    content: payload.content,
+    content_type: payload.contentType,
+    metadata: metadata as Json | null,
   });
 
   if (msgErr) return { error: msgErr.message };
@@ -358,32 +366,63 @@ export async function sendMessage(
     const config = channel?.config as Record<string, string> | undefined;
 
     if (conv.platform === "telegram" && config?.bot_token) {
-      await fetch(`https://api.telegram.org/bot${config.bot_token}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: conv.platform_conversation_id,
-          text: content,
-        }),
-      }).catch(console.error);
+      if (payload.contentType === "image") {
+        await fetch(`https://api.telegram.org/bot${config.bot_token}/sendPhoto`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: conv.platform_conversation_id,
+            photo: payload.content,
+            caption: payload.caption ?? "",
+          }),
+        }).catch(console.error);
+      } else {
+        await fetch(`https://api.telegram.org/bot${config.bot_token}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: conv.platform_conversation_id,
+            text: payload.content,
+          }),
+        }).catch(console.error);
+      }
     }
 
     if (conv.platform === "viber" && config?.auth_token) {
-      await fetch("https://chatapi.viber.com/pa/send_message", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Viber-Auth-Token": config.auth_token,
-        },
-        body: JSON.stringify({
-          receiver: conv.platform_conversation_id,
-          min_api_version: 1,
-          sender: { name: "Vendor" },
-          tracking_data: conversationId,
-          type: "text",
-          text: content,
-        }),
-      }).catch(console.error);
+      if (payload.contentType === "image") {
+        await fetch("https://chatapi.viber.com/pa/send_message", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Viber-Auth-Token": config.auth_token,
+          },
+          body: JSON.stringify({
+            receiver: conv.platform_conversation_id,
+            min_api_version: 1,
+            sender: { name: "Vendor" },
+            tracking_data: conversationId,
+            type: "picture",
+            text: payload.caption ?? "",
+            media: payload.content,
+          }),
+        }).catch(console.error);
+      } else {
+        await fetch("https://chatapi.viber.com/pa/send_message", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Viber-Auth-Token": config.auth_token,
+          },
+          body: JSON.stringify({
+            receiver: conv.platform_conversation_id,
+            min_api_version: 1,
+            sender: { name: "Vendor" },
+            tracking_data: conversationId,
+            type: "text",
+            text: payload.content,
+          }),
+        }).catch(console.error);
+      }
     }
   }
 

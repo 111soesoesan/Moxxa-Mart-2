@@ -242,6 +242,45 @@ This keeps two sources of truth in sync: the authoritative `inventory.stock_quan
 
 ---
 
+## orders → trg_update_customer_stats_on_order_insert
+
+| Field | Value |
+|---|---|
+| **Table** | `public.orders` |
+| **Event** | AFTER INSERT |
+| **Function** | `update_customer_stats_on_order_insert()` |
+| **Security** | SECURITY DEFINER |
+
+**What it does:** Automatically increments `customers.total_orders` and adds to `total_spent` when a new order is placed. It also stamps `last_order_at` and creates a record in `customer_activity`.
+
+---
+
+## orders → trg_adjust_customer_stats_on_order_cancel
+
+| Field | Value |
+|---|---|
+| **Table** | `public.orders` |
+| **Event** | AFTER UPDATE (of status) |
+| **Function** | `adjust_customer_stats_on_order_cancel()` |
+| **Security** | SECURITY DEFINER |
+
+**What it does:** Decrements customer order counts and total spent if an order is cancelled or refunded, and logs the reversal in `customer_activity`.
+
+---
+
+## messaging_messages → trg_update_conversation_on_message_insert
+
+| Field | Value |
+|---|---|
+| **Table** | `public.messaging_messages` |
+| **Event** | AFTER INSERT |
+| **Function** | `update_conversation_on_message_insert()` |
+| **Security** | SECURITY DEFINER |
+
+**What it does:** When a new message is logged, it updates the parent `messaging_conversations.last_message_at` and `last_message_preview`. If the message is inbound, it also increments the `unread_count`.
+
+---
+
 ## Trigger Execution Order for a New Shop
 
 1. `INSERT INTO public.shops …`
@@ -256,6 +295,16 @@ This keeps two sources of truth in sync: the authoritative `inventory.stock_quan
 
 1. `INSERT INTO public.product_variations …`
 2. → `auto_create_inventory_on_variation` fires → inserts one row into `inventory` (variation_id = pv.id)
+
+## Trigger Execution Order for a New Order (Customer Stats)
+
+1. `INSERT INTO public.orders …`
+2. → `trg_update_customer_stats_on_order_insert` fires → updates `customers` record + `customer_activity`
+
+## Trigger Execution Order for a New Inbound Message
+
+1. `INSERT INTO public.messaging_messages … (direction = 'inbound')`
+2. → `trg_update_conversation_on_message_insert` fires → updates `messaging_conversations.unread_count` + preview
 
 ## Trigger Execution Order for Order Confirmation
 

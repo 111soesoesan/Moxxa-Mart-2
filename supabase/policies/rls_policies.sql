@@ -461,6 +461,94 @@ CREATE POLICY "product_vars_delete"
 
 
 -- ────────────────────────────────────────────────────────────
+-- TABLE: public.customer_identities
+-- RLS: ENABLED
+-- ────────────────────────────────────────────────────────────
+ALTER TABLE public.customer_identities ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "vendors_read_own_shop_customer_identities"
+  ON public.customer_identities FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public.customers c
+      JOIN public.shops s ON s.id = c.shop_id
+      WHERE c.id = customer_identities.customer_id
+        AND s.owner_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "service_role_full_access_customer_identities"
+  ON public.customer_identities FOR ALL
+  USING (auth.role() = 'service_role');
+
+
+-- ────────────────────────────────────────────────────────────
+-- TABLE: public.messaging_channels
+-- RLS: ENABLED
+-- ────────────────────────────────────────────────────────────
+ALTER TABLE public.messaging_channels ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "vendors_manage_own_messaging_channels"
+  ON public.messaging_channels FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.shops
+      WHERE shops.id = messaging_channels.shop_id
+        AND shops.owner_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "service_role_full_access_messaging_channels"
+  ON public.messaging_channels FOR ALL
+  USING (auth.role() = 'service_role');
+
+
+-- ────────────────────────────────────────────────────────────
+-- TABLE: public.messaging_conversations
+-- RLS: ENABLED
+-- ────────────────────────────────────────────────────────────
+ALTER TABLE public.messaging_conversations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "vendors_manage_own_conversations"
+  ON public.messaging_conversations FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.shops
+      WHERE shops.id = messaging_conversations.shop_id
+        AND shops.owner_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "service_role_full_access_conversations"
+  ON public.messaging_conversations FOR ALL
+  USING (auth.role() = 'service_role');
+
+
+-- ────────────────────────────────────────────────────────────
+-- TABLE: public.messaging_messages
+-- RLS: ENABLED
+-- ────────────────────────────────────────────────────────────
+ALTER TABLE public.messaging_messages ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "vendors_manage_own_messages"
+  ON public.messaging_messages FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public.messaging_conversations conv
+      JOIN public.shops s ON s.id = conv.shop_id
+      WHERE conv.id = messaging_messages.conversation_id
+        AND s.owner_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "service_role_full_access_messages"
+  ON public.messaging_messages FOR ALL
+  USING (auth.role() = 'service_role');
+
+
+-- ────────────────────────────────────────────────────────────
 -- ADMIN POLICIES (ALL TABLES)
 -- ────────────────────────────────────────────────────────────
 -- Grants 'admin' role full CRUD access to all tables using is_admin()
@@ -483,3 +571,7 @@ CREATE POLICY "admin_all_attributes" ON public.attributes FOR ALL USING (public.
 CREATE POLICY "admin_all_attribute_items" ON public.attribute_items FOR ALL USING (public.is_admin());
 CREATE POLICY "admin_all_product_categories" ON public.product_categories FOR ALL USING (public.is_admin());
 CREATE POLICY "admin_all_product_variations" ON public.product_variations FOR ALL USING (public.is_admin());
+CREATE POLICY "admin_all_customer_identities" ON public.customer_identities FOR ALL USING (public.is_admin());
+CREATE POLICY "admin_all_messaging_channels" ON public.messaging_channels FOR ALL USING (public.is_admin());
+CREATE POLICY "admin_all_messaging_conversations" ON public.messaging_conversations FOR ALL USING (public.is_admin());
+CREATE POLICY "admin_all_messaging_messages" ON public.messaging_messages FOR ALL USING (public.is_admin());

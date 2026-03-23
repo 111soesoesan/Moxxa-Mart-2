@@ -215,6 +215,50 @@ Every table has Row Level Security enabled. The service role bypasses all polici
 
 ---
 
+## customer_identities
+
+| Operation | Who Can | Rule |
+|---|---|---|
+| SELECT | Shop owner | via `customers → shops → owner_id` chain |
+| INSERT | — | Service role only |
+| UPDATE | — | No policy |
+| DELETE | — | No policy |
+
+---
+
+## messaging_channels
+
+| Operation | Who Can | Rule |
+|---|---|---|
+| SELECT | Shop owner | `shops.owner_id = auth.uid()` |
+| INSERT | Shop owner | `shops.owner_id = auth.uid()` |
+| UPDATE | Shop owner | `shops.owner_id = auth.uid()` |
+| DELETE | Shop owner | `shops.owner_id = auth.uid()` |
+
+---
+
+## messaging_conversations
+
+| Operation | Who Can | Rule |
+|---|---|---|
+| SELECT | Shop owner | `shops.owner_id = auth.uid()` |
+| INSERT | Shop owner | `shops.owner_id = auth.uid()` |
+| UPDATE | Shop owner | `shops.owner_id = auth.uid()` |
+| DELETE | — | No policy |
+
+---
+
+## messaging_messages
+
+| Operation | Who Can | Rule |
+|---|---|---|
+| SELECT | Shop owner | via `messaging_conversations → shops → owner_id` |
+| INSERT | Shop owner | via `messaging_conversations → shops → owner_id` |
+| UPDATE | — | No policy |
+| DELETE | — | No policy |
+
+---
+
 ## Security Observations
 
 1. **`WITH CHECK (TRUE)` policies** exist on `orders`, `customers`, and `customer_activity` inserts. These are intentional to support guest checkout and automation, but rely on the service role for actual data integrity in sensitive flows.
