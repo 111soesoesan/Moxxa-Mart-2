@@ -81,7 +81,7 @@ export async function getPOSProducts(shopId: string): Promise<POSProduct[]> {
   const { data: products, error: productsError } = await supabase
     .from("products")
     .select(
-      `id, name, price, sale_price, image_url, sku, stock,
+      `id, name, price, sale_price, main_image, image_urls, sku, stock,
       product_type, track_inventory, is_active,
       product_categories(category_id),
       product_variations(
@@ -130,7 +130,7 @@ export async function getPOSProducts(shopId: string): Promise<POSProduct[]> {
       price: p.price,
       sale_price: p.sale_price,
       effective_price: p.sale_price ?? p.price,
-      image_url: p.image_url,
+      image_url: p.main_image ?? (Array.isArray(p.image_urls) && p.image_urls.length > 0 ? p.image_urls[0] : null),
       sku: p.sku ?? null,
       stock,
       available_stock,
