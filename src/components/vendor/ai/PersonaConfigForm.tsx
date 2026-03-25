@@ -188,10 +188,6 @@ export function PersonaConfigForm({ shopId, initial }: Props) {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-lg border p-3 text-sm text-muted-foreground">
-              The assistant no longer has a separate active status. Channel assignment now controls where it responds.
-            </div>
-
             <Button
               className="w-full"
               onClick={handleSave}
