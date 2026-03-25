@@ -89,7 +89,13 @@ export function usePOSCart(shopId: string) {
   const [suspendedCarts, setSuspendedCarts] = useState<SuspendedCart[]>(() => {
     if (typeof window === "undefined") return [];
     try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY(shopId)) ?? "[]");
+      const raw = JSON.parse(localStorage.getItem(STORAGE_KEY(shopId)) ?? "[]");
+      return Array.isArray(raw)
+        ? raw.map((s: any) => ({
+            ...s,
+            label: typeof s?.label === "string" && s.label.trim() ? s.label : "Parked Sale",
+          }))
+        : [];
     } catch {
       return [];
     }
@@ -240,9 +246,12 @@ export function usePOSCart(shopId: string) {
   const suspendCart = useCallback(
     (label?: string) => {
       if (cart.items.length === 0) return;
+      const safeLabel = typeof label === "string" && label.trim()
+        ? label
+        : `Sale ${new Date().toLocaleTimeString()}`;
       const suspended: SuspendedCart = {
         id: nanoid(),
-        label: label ?? `Sale ${new Date().toLocaleTimeString()}`,
+        label: safeLabel,
         cart,
         suspended_at: new Date().toISOString(),
       };

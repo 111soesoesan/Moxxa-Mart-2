@@ -233,7 +233,7 @@ export function POSCartPanel({
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
-                onClick={onSuspend}
+                onClick={() => onSuspend()}
                 title="Suspend cart"
               >
                 <Clock className="h-3.5 w-3.5" />
@@ -502,7 +502,7 @@ export function POSCartPanel({
               suspendedCarts.map((sc) => (
                 <div key={sc.id} className="flex items-center gap-3 p-3 rounded-lg border">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{sc.label}</p>
+                    <p className="text-sm font-medium truncate">{typeof sc.label === "string" ? sc.label : "Parked Sale"}</p>
                     <p className="text-xs text-muted-foreground">
                       {sc.cart.items.length} items · {formatCurrency(
                         sc.cart.items.reduce((s, i) => s + i.price * i.quantity, 0)
