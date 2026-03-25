@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { generateText, tool } from "npm:ai";
+import { generateText, stepCountIs, tool } from "npm:ai";
 import { createGoogleGenerativeAI } from "npm:@ai-sdk/google";
 import { z } from "npm:zod";
 
@@ -695,6 +695,7 @@ async function maybeSendAIReply({
       system,
       messages: aiMessages,
       tools: buildAITools(supabase, shop),
+      stopWhen: stepCountIs(5),
     });
   } catch (toolErr) {
     console.error("AI tool generation failed; retrying without tools", toolErr);

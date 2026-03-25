@@ -1,4 +1,4 @@
-import { streamText, type ModelMessage } from "ai";
+import { stepCountIs, streamText, type ModelMessage } from "ai";
 import { createServiceClient } from "@/lib/supabase/server";
 import { buildSystemPrompt, createGeminiModel, buildAITools } from "@/lib/ai/chat-engine";
 
@@ -50,6 +50,7 @@ export async function POST(
       messages: modelMessages,
       temperature: persona.temperature ?? 0.7,
       tools,
+      stopWhen: stepCountIs(5),
       onFinish: async (event) => {
         if (!sessionId) return;
         try {

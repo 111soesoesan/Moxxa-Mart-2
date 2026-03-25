@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateText } from "ai";
+import { generateText, stepCountIs } from "ai";
 import { createServiceClient } from "@/lib/supabase/server";
 import { buildSystemPrompt, createGeminiModel, buildAITools } from "@/lib/ai/chat-engine";
 import type { Json } from "@/types/supabase";
@@ -245,6 +245,7 @@ export async function POST(req: NextRequest) {
             system: systemPrompt,
             messages: aiMessages,
             tools,
+            stopWhen: stepCountIs(5),
           });
 
           if (result.text) {
