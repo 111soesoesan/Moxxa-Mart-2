@@ -5,7 +5,6 @@ import { ShopHeader } from "@/components/shop/ShopHeader";
 import { PromotionBar } from "@/components/shop/PromotionBar";
 import { ShopSecondaryNav } from "@/components/shop/ShopSecondaryNav";
 import { WebChatWidget } from "@/components/storefront/WebChatWidget";
-import { AIChatWidget } from "@/components/storefront/AIChatWidget";
 
 type Props = {
   children: React.ReactNode;
@@ -19,23 +18,14 @@ export default async function ShopLayout({ children, params }: Props) {
 
   const supabase = (await createServiceClient()) as any;
 
-  const [{ data: channel }, { data: persona }] = await Promise.all([
-    supabase
-      .from("messaging_channels")
-      .select("id, is_active")
-      .eq("shop_id", shop.id)
-      .eq("platform", "webchat")
-      .single(),
-    supabase
-      .from("ai_personas")
-      .select("name, greeting_message, is_active")
-      .eq("shop_id", shop.id)
-      .eq("is_active", true)
-      .single(),
-  ]);
+  const { data: channel } = await supabase
+    .from("messaging_channels")
+    .select("id, is_active")
+    .eq("shop_id", shop.id)
+    .eq("platform", "webchat")
+    .single();
 
   const webchatActive = channel?.is_active ?? false;
-  const aiActive = persona?.is_active ?? false;
 
   return (
     <div>
@@ -55,15 +45,6 @@ export default async function ShopLayout({ children, params }: Props) {
       {children}
 
       {webchatActive && <WebChatWidget shopSlug={shop.slug} shopName={shop.name} />}
-
-      {aiActive && !webchatActive && (
-        <AIChatWidget
-          shopSlug={shop.slug}
-          shopName={shop.name}
-          personaName={persona.name}
-          greetingMessage={persona.greeting_message}
-        />
-      )}
     </div>
   );
 }

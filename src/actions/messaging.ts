@@ -29,6 +29,8 @@ export type MessagingConversation = {
   last_message_preview: string | null;
   unread_count: number;
   status: "open" | "resolved" | "archived";
+  ai_active: boolean;
+  channel: { id: string; ai_enabled: boolean } | null;
   created_at: string;
   updated_at: string;
 };
@@ -267,7 +269,7 @@ export async function getConversations(
 
   let query = supabase
     .from("messaging_conversations")
-    .select("*")
+    .select("*, channel:channel_id(id, ai_enabled)")
     .eq("shop_id", shopId)
     .order("last_message_at", { ascending: false, nullsFirst: false });
 
@@ -464,6 +466,38 @@ export async function updateConversationStatus(
   await supabase
     .from("messaging_conversations")
     .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", conversationId);
+
+  return {};
+}
+
+export async function setConversationAIActive(
+  conversationId: string,
+  aiActive: boolean
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: conv } = await supabase
+    .from("messaging_conversations")
+    .select("shop_id")
+    .eq("id", conversationId)
+    .single();
+
+  if (!conv) return { error: "Not found" };
+
+  const { data: shop } = await supabase
+    .from("shops")
+    .select("owner_id")
+    .eq("id", conv.shop_id)
+    .single();
+
+  if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
+
+  await (supabase as any)
+    .from("messaging_conversations")
+    .update({ ai_active: aiActive, updated_at: new Date().toISOString() })
     .eq("id", conversationId);
 
   return {};

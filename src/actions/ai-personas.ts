@@ -22,12 +22,10 @@ export type UpsertPersonaInput = {
   description_template: "professional" | "friendly" | "streetwear" | "tech" | "luxury";
   system_prompt: string;
   greeting_message: string;
-  temperature: number;
-  top_p: number;
   is_active: boolean;
 };
 
-// ─── Get or create persona for a shop ────────────────────────────────────────
+// ─── Get persona for a shop ───────────────────────────────────────────────────
 
 export async function getAIPersona(shopId: string): Promise<AIPersona | null> {
   const supabase = (await createClient()) as any;
@@ -39,7 +37,7 @@ export async function getAIPersona(shopId: string): Promise<AIPersona | null> {
   return (data as AIPersona) ?? null;
 }
 
-// ─── Upsert persona (create or update) ───────────────────────────────────────
+// ─── Upsert persona ───────────────────────────────────────────────────────────
 
 export async function upsertAIPersona(
   shopId: string,
@@ -62,9 +60,7 @@ export async function upsertAIPersona(
     name: input.name.trim() || "Aria",
     description_template: input.description_template,
     system_prompt: input.system_prompt.trim(),
-    greeting_message: input.greeting_message.trim() || "Hi! How can I help you today?",
-    temperature: Math.min(2, Math.max(0, input.temperature)),
-    top_p: Math.min(1, Math.max(0, input.top_p)),
+    greeting_message: input.greeting_message.trim() || "Hi! How can I help you find something today? 😊",
     is_active: input.is_active,
   };
 
@@ -80,7 +76,7 @@ export async function upsertAIPersona(
   return { success: true, data: data as AIPersona };
 }
 
-// ─── Toggle active state quickly ─────────────────────────────────────────────
+// ─── Toggle active state quickly ──────────────────────────────────────────────
 
 export async function toggleAIPersonaActive(
   shopId: string,
@@ -104,12 +100,49 @@ export async function toggleAIPersonaActive(
     .eq("shop_id", shopId);
 
   if (error) return { success: false, error: error.message };
-
   revalidatePath(`/vendor/${shop.slug}/ai-assistant`);
   return { success: true };
 }
 
-// ─── Get conversation stats for a shop (usage tracking) ──────────────────────
+// ─── Set AI enabled/disabled on a specific channel ───────────────────────────
+
+export async function setChannelAIEnabled(
+  shopId: string,
+  channelId: string,
+  enabled: boolean
+): Promise<{ success: boolean; error?: string }> {
+  const supabaseTyped = await createClient();
+  const { data: { user } } = await supabaseTyped.auth.getUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  const { data: shop } = await supabaseTyped
+    .from("shops")
+    .select("owner_id, slug")
+    .eq("id", shopId)
+    .single();
+  if (!shop || shop.owner_id !== user.id) return { success: false, error: "Unauthorized" };
+
+  // Verify the channel belongs to this shop
+  const { data: channel } = await supabaseTyped
+    .from("messaging_channels")
+    .select("id")
+    .eq("id", channelId)
+    .eq("shop_id", shopId)
+    .single();
+  if (!channel) return { success: false, error: "Channel not found" };
+
+  const supabase = supabaseTyped as any;
+  const { error } = await supabase
+    .from("messaging_channels")
+    .update({ ai_enabled: enabled })
+    .eq("id", channelId);
+
+  if (error) return { success: false, error: error.message };
+  revalidatePath(`/vendor/${shop.slug}/ai-assistant`);
+  return { success: true };
+}
+
+// ─── Usage stats ──────────────────────────────────────────────────────────────
 
 export async function getAIConversationStats(shopId: string): Promise<{
   total_sessions: number;
@@ -130,16 +163,15 @@ export async function getAIConversationStats(shopId: string): Promise<{
   if (!data || data.length === 0) {
     return { total_sessions: 0, total_messages: 0, tokens_input: 0, tokens_output: 0 };
   }
-
   return {
     total_sessions: data.length,
     total_messages: data.reduce((s: number, r: any) => s + (r.messages_count ?? 0), 0),
-    tokens_input: data.reduce((s: number, r: any) => s + (r.tokens_input ?? 0), 0),
-    tokens_output: data.reduce((s: number, r: any) => s + (r.tokens_output ?? 0), 0),
+    tokens_input:   data.reduce((s: number, r: any) => s + (r.tokens_input ?? 0), 0),
+    tokens_output:  data.reduce((s: number, r: any) => s + (r.tokens_output ?? 0), 0),
   };
 }
 
-// ─── Public: fetch active persona by shop slug (for API route) ───────────────
+// ─── Public: fetch active persona by shop slug (for legacy streaming route) ──
 
 export async function getActivePersonaBySlug(shopSlug: string): Promise<{
   persona: AIPersona | null;
@@ -153,7 +185,6 @@ export async function getActivePersonaBySlug(shopSlug: string): Promise<{
     .select("id, name")
     .eq("slug", shopSlug)
     .single();
-
   if (!shop) return { persona: null, shopId: null, shopName: null };
 
   const supabase = supabaseTyped as any;
@@ -164,9 +195,5 @@ export async function getActivePersonaBySlug(shopSlug: string): Promise<{
     .eq("is_active", true)
     .single();
 
-  return {
-    persona: (persona as AIPersona) ?? null,
-    shopId: shop.id,
-    shopName: shop.name,
-  };
+  return { persona: (persona as AIPersona) ?? null, shopId: shop.id, shopName: shop.name };
 }
