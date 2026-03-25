@@ -77,6 +77,36 @@ When creating an order from a non-web channel, pass `platform` and `platformId` 
 createOrder({ ..., customer: { full_name, phone, platform: "whatsapp", platformId: "+6591234567" } })
 ```
 
+## 6. AI Customer Support & Persona Engine (migration 20260325010000)
+
+### Architecture
+Vendors configure a customized AI assistant per shop powered by **Gemini 2.5 Flash** via the Vercel AI SDK (`@ai-sdk/google`). The chat widget appears on the storefront automatically when a persona is active.
+
+- **`ai_personas`**: One row per shop (UNIQUE on `shop_id`). Stores `name`, `description_template`, `system_prompt`, `greeting_message`, `temperature`, `top_p`, `is_active`.
+- **`ai_conversation_logs`**: Per-session usage tracking (`messages_count`, `tokens_input`, `tokens_output`).
+- **API route**: `POST /api/chat/[shopSlug]` — Vercel AI SDK `streamText` with tool-calling (`maxSteps: 5`).
+- **Secret**: `GEMINI_API_KEY` (already set). Model: `gemini-2.5-flash`.
+
+### System Prompt Assembly
+The route merges three layers in order:
+1. Base personality from `description_template` (`professional|friendly|streetwear|tech|luxury`)
+2. Core Moxxa Mart rules (currency, scope to own products, no fabrication)
+3. Vendor's `system_prompt` ("Extra Instructions")
+
+### Tools Available to the AI
+| Tool | Purpose |
+|------|---------|
+| `search_products` | Keyword/category search across the shop's active products |
+| `get_product_details` | Full variation tree (sizes, colors, stock, image overrides) for a single product |
+| `check_discounts` | Lists products with active `sale_price` |
+| `take_order` | 3-step order flow: `collect_info → confirm → submit` (creates order + customer record) |
+
+### Storefront Rendering
+`src/app/(customer)/shop/[slug]/layout.tsx` fetches the active persona server-side and conditionally renders `AIChatWidget`. If a webchat channel is also active, webchat takes priority over the AI widget.
+
+### Vendor Config UI
+`/vendor/[shopSlug]/ai-assistant` — full persona configuration page with personality templates, greeting message, extra instructions, temperature/top-p sliders, live/inactive toggle, and usage stats.
+
 ## 7. Unified Messaging Adapter (UMA)
 
 ### Architecture

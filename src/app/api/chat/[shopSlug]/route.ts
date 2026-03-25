@@ -1,5 +1,5 @@
 import { streamText, tool } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/server";
 
@@ -89,9 +89,8 @@ export async function POST(
       return new Response("AI assistant not enabled for this shop", { status: 404 });
     }
 
-    const openai = createOpenAI({
-      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY!,
-      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+    const google = createGoogleGenerativeAI({
+      apiKey: process.env.GEMINI_API_KEY!,
     });
 
     const systemPrompt = buildSystemPrompt(
@@ -102,7 +101,7 @@ export async function POST(
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const streamOptions: any = {
-      model: openai("gpt-4o-mini"),
+      model: google("gemini-2.5-flash"),
       system: systemPrompt,
       messages: messages as any,
       temperature: parseFloat(persona.temperature) || 0.7,

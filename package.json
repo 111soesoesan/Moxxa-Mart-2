@@ -12,6 +12,7 @@
     "db:types": "npx supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > src/types/supabase.ts"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.53",
     "@ai-sdk/openai": "^3.0.48",
     "@ai-sdk/react": "^3.0.140",
     "@hookform/resolvers": "^5.2.2",
