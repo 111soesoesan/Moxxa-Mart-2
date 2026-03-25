@@ -24,6 +24,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   settings: "Settings",
   "payment-methods": "Payment Methods",
   pos: "POS Terminal",
+  "ai-assistant": "AI Assistant",
 };
 
 type BreadcrumbEntry = { label: string; href?: string };

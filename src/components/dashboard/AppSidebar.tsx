@@ -50,6 +50,7 @@ import {
   FolderTree,
   MessageSquare,
   Calculator,
+  Bot,
 } from "lucide-react";
 import { Collapsible } from "radix-ui";
 import { signOut } from "@/actions/auth";
@@ -221,6 +222,20 @@ export function AppSidebar({ shops, currentShop, profile }: Props) {
                   <Link href={`${base}/pos`}>
                     <Calculator />
                     <span>POS Terminal</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {/* AI Assistant */}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={isActive("ai-assistant")}
+                  tooltip="AI Assistant"
+                >
+                  <Link href={`${base}/ai-assistant`}>
+                    <Bot />
+                    <span>AI Assistant</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
