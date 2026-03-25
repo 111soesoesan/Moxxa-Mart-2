@@ -6,17 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
 import { upsertAIPersona, type AIPersona, type UpsertPersonaInput } from "@/actions/ai-personas";
 import {
@@ -24,7 +14,6 @@ import {
   Sparkles,
   MessageSquare,
   Settings2,
-  Gauge,
 } from "lucide-react";
 
 const TEMPLATES = [
@@ -62,11 +51,10 @@ const TEMPLATES = [
 
 interface Props {
   shopId: string;
-  shopSlug: string;
   initial: AIPersona | null;
 }
 
-export function PersonaConfigForm({ shopId, shopSlug, initial }: Props) {
+export function PersonaConfigForm({ shopId, initial }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -76,12 +64,7 @@ export function PersonaConfigForm({ shopId, shopSlug, initial }: Props) {
     system_prompt: initial?.system_prompt ?? "",
     greeting_message:
       initial?.greeting_message ?? "Hi! How can I help you find something today? 😊",
-    temperature: initial?.temperature ?? 0.7,
-    top_p: initial?.top_p ?? 1.0,
-    is_active: initial?.is_active ?? false,
   });
-
-  const selectedTemplate = TEMPLATES.find((t) => t.value === form.description_template);
 
   function handleSave() {
     startTransition(async () => {
@@ -190,60 +173,6 @@ export function PersonaConfigForm({ shopId, shopSlug, initial }: Props) {
           </CardContent>
         </Card>
 
-        {/* Advanced tuning */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Gauge className="h-5 w-5 text-primary" />
-              <CardTitle className="text-base">Advanced Tuning</CardTitle>
-            </div>
-            <CardDescription>
-              Control how creative vs. predictable the AI is.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Temperature</Label>
-                <span className="text-sm font-mono text-muted-foreground">
-                  {form.temperature.toFixed(2)}
-                </span>
-              </div>
-              <Slider
-                min={0}
-                max={1.5}
-                step={0.05}
-                value={[form.temperature]}
-                onValueChange={([v]) => setForm((f) => ({ ...f, temperature: v }))}
-              />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Predictable (0.0)</span>
-                <span>Balanced (0.7)</span>
-                <span>Creative (1.5)</span>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Top P</Label>
-                <span className="text-sm font-mono text-muted-foreground">
-                  {form.top_p.toFixed(2)}
-                </span>
-              </div>
-              <Slider
-                min={0.1}
-                max={1}
-                step={0.05}
-                value={[form.top_p]}
-                onValueChange={([v]) => setForm((f) => ({ ...f, top_p: v }))}
-              />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Focused (0.1)</span>
-                <span>Diverse (1.0)</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* ── Right: status + save ── */}
@@ -252,28 +181,16 @@ export function PersonaConfigForm({ shopId, shopSlug, initial }: Props) {
           <CardHeader>
             <div className="flex items-center gap-2">
               <Settings2 className="h-5 w-5 text-primary" />
-              <CardTitle className="text-base">Status</CardTitle>
+              <CardTitle className="text-base">Save Assistant</CardTitle>
             </div>
+            <CardDescription>
+              Save the persona here, then choose which channels it should handle.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <p className="text-sm font-medium">Enable AI Chat</p>
-                <p className="text-xs text-muted-foreground">
-                  Show AI widget on your storefront
-                </p>
-              </div>
-              <Switch
-                checked={form.is_active}
-                onCheckedChange={(v) => setForm((f) => ({ ...f, is_active: v }))}
-              />
+            <div className="rounded-lg border p-3 text-sm text-muted-foreground">
+              The assistant no longer has a separate active status. Channel assignment now controls where it responds.
             </div>
-
-            {form.is_active && (
-              <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-800 dark:bg-green-950/20 dark:border-green-900 dark:text-green-300">
-                Your AI assistant will be visible to customers when they visit your shop.
-              </div>
-            )}
 
             <Button
               className="w-full"
@@ -283,39 +200,6 @@ export function PersonaConfigForm({ shopId, shopSlug, initial }: Props) {
               <Sparkles className="h-4 w-4 mr-2" />
               {isPending ? "Saving…" : "Save Assistant"}
             </Button>
-          </CardContent>
-        </Card>
-
-        {/* Preview card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Preview</CardTitle>
-            <CardDescription>How your assistant will appear</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-xl border bg-card shadow-sm p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Bot className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold">{form.name || "Aria"}</p>
-                  <Badge variant="secondary" className="text-xs">
-                    {selectedTemplate?.emoji} {selectedTemplate?.label}
-                  </Badge>
-                </div>
-              </div>
-
-              <div className="rounded-lg bg-muted/50 p-3 text-sm">
-                {form.greeting_message || "Hi! How can I help you today?"}
-              </div>
-
-              <div className="flex justify-end">
-                <div className="rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm">
-                  Tell me about your products
-                </div>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>

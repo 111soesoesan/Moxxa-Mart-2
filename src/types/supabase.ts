@@ -12,33 +12,109 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
+      ai_conversation_logs: {
+        Row: {
+          created_at: string
+          id: string
+          messages_count: number
+          persona_id: string | null
+          session_id: string
+          shop_id: string
+          tokens_input: number
+          tokens_output: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          messages_count?: number
+          persona_id?: string | null
+          session_id: string
+          shop_id: string
+          tokens_input?: number
+          tokens_output?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          messages_count?: number
+          persona_id?: string | null
+          session_id?: string
+          shop_id?: string
+          tokens_input?: number
+          tokens_output?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_conversation_logs_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "ai_personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_conversation_logs_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_personas: {
+        Row: {
+          created_at: string
+          description_template: string
+          greeting_message: string
+          id: string
+          is_active: boolean
+          name: string
+          shop_id: string
+          system_prompt: string
+          temperature: number
+          top_p: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description_template?: string
+          greeting_message?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          shop_id: string
+          system_prompt?: string
+          temperature?: number
+          top_p?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description_template?: string
+          greeting_message?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          shop_id?: string
+          system_prompt?: string
+          temperature?: number
+          top_p?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_personas_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: true
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attribute_items: {
         Row: {
           attribute_id: string
@@ -562,6 +638,7 @@ export type Database = {
       }
       messaging_channels: {
         Row: {
+          ai_enabled: boolean
           config: Json
           created_at: string
           id: string
@@ -571,6 +648,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_enabled?: boolean
           config?: Json
           created_at?: string
           id?: string
@@ -580,6 +658,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_enabled?: boolean
           config?: Json
           created_at?: string
           id?: string
@@ -600,6 +679,7 @@ export type Database = {
       }
       messaging_conversations: {
         Row: {
+          ai_active: boolean
           channel_id: string | null
           created_at: string
           customer_avatar: string | null
@@ -616,6 +696,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_active?: boolean
           channel_id?: string | null
           created_at?: string
           customer_avatar?: string | null
@@ -632,6 +713,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_active?: boolean
           channel_id?: string | null
           created_at?: string
           customer_avatar?: string | null
@@ -723,6 +805,8 @@ export type Database = {
           created_at: string
           customer_id: string | null
           customer_snapshot: Json
+          discount_amount: number
+          discount_note: string | null
           id: string
           items_snapshot: Json
           notes: string | null
@@ -732,6 +816,7 @@ export type Database = {
           payment_status: string
           shipping_fee: number
           shop_id: string
+          source: string
           status: string
           subtotal: number
           total: number
@@ -742,6 +827,8 @@ export type Database = {
           created_at?: string
           customer_id?: string | null
           customer_snapshot?: Json
+          discount_amount?: number
+          discount_note?: string | null
           id?: string
           items_snapshot?: Json
           notes?: string | null
@@ -751,6 +838,7 @@ export type Database = {
           payment_status?: string
           shipping_fee?: number
           shop_id: string
+          source?: string
           status?: string
           subtotal: number
           total: number
@@ -761,6 +849,8 @@ export type Database = {
           created_at?: string
           customer_id?: string | null
           customer_snapshot?: Json
+          discount_amount?: number
+          discount_note?: string | null
           id?: string
           items_snapshot?: Json
           notes?: string | null
@@ -770,6 +860,7 @@ export type Database = {
           payment_status?: string
           shipping_fee?: number
           shop_id?: string
+          source?: string
           status?: string
           subtotal?: number
           total?: number
@@ -1388,9 +1479,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },

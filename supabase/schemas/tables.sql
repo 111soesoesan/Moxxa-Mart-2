@@ -370,6 +370,7 @@ CREATE TABLE IF NOT EXISTS public.messaging_channels (
   platform    TEXT        NOT NULL
                 CHECK (platform IN ('telegram', 'viber', 'webchat')),
   is_active   BOOLEAN     NOT NULL DEFAULT FALSE,
+  ai_enabled BOOLEAN     NOT NULL DEFAULT FALSE,
   config      JSONB       NOT NULL DEFAULT '{}',
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -394,6 +395,7 @@ CREATE TABLE IF NOT EXISTS public.messaging_conversations (
   unread_count            INTEGER     NOT NULL DEFAULT 0,
   status                  TEXT        NOT NULL DEFAULT 'open'
                                 CHECK (status IN ('open', 'resolved', 'archived')),
+  ai_active               BOOLEAN     NOT NULL DEFAULT TRUE,
   created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (channel_id, platform_conversation_id)
@@ -413,4 +415,37 @@ CREATE TABLE IF NOT EXISTS public.messaging_messages (
   platform_message_id TEXT,
   metadata            JSONB,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+
+-- ─── AI PERSONAS ───────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.ai_personas (
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  shop_id              UUID NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE,
+  name                 TEXT NOT NULL DEFAULT 'Aria',
+  description_template TEXT NOT NULL DEFAULT 'professional'
+                        CHECK (description_template IN ('professional','friendly','streetwear','tech','luxury')),
+  system_prompt        TEXT NOT NULL DEFAULT '',
+  greeting_message     TEXT NOT NULL DEFAULT 'Hi! How can I help you today?',
+  temperature          NUMERIC(3,2) NOT NULL DEFAULT 0.70
+                        CHECK (temperature >= 0 AND temperature <= 2),
+  top_p                NUMERIC(3,2) NOT NULL DEFAULT 1.00
+                        CHECK (top_p >= 0 AND top_p <= 1),
+  is_active            BOOLEAN NOT NULL DEFAULT false,
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (shop_id)
+);
+
+-- ─── AI CONVERSATION LOGS ──────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.ai_conversation_logs (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  shop_id         UUID NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE,
+  persona_id      UUID REFERENCES public.ai_personas(id) ON DELETE SET NULL,
+  session_id      TEXT NOT NULL,
+  messages_count  INT NOT NULL DEFAULT 0,
+  tokens_input    INT NOT NULL DEFAULT 0,
+  tokens_output   INT NOT NULL DEFAULT 0,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );

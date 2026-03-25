@@ -67,8 +67,10 @@ auth.users (Supabase managed)
 | `customer_activity` | Customer interaction log | ✅ |
 | `customer_identities` | Normalized contact points (for Omnichannel) | ✅ |
 | `messaging_channels` | Platform settings (Telegram, Viber tokens) | ✅ |
-| `messaging_conversations` | Unified Inbox chat threads | ✅ |
+| `messaging_conversations` | Unified Inbox chat threads (supports `ai_active`) | ✅ |
 | `messaging_messages` | Inbound/Outbound chat logs | ✅ |
+| `ai_personas` | AI assistant configuration per shop | ✅ |
+| `ai_conversation_logs` | AI token usage + session tracking | ✅ |
 | `shop_blogs` | Vendor blog posts | ✅ |
 | `blog_likes` | Blog like records | ✅ |
 | `blog_comments` | Blog comment records | ✅ |

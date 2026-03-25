@@ -16,16 +16,18 @@ export default async function ShopLayout({ children, params }: Props) {
   const shop = await getShopBySlug(slug);
   if (!shop) notFound();
 
+  // Generated Supabase types may lag behind messaging-channel shape.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = (await createServiceClient()) as any;
 
   const { data: channel } = await supabase
     .from("messaging_channels")
-    .select("id, is_active")
+    .select("id, is_active, ai_enabled")
     .eq("shop_id", shop.id)
     .eq("platform", "webchat")
     .single();
 
-  const webchatActive = channel?.is_active ?? false;
+  const webchatActive = !!(channel?.is_active || channel?.ai_enabled);
 
   return (
     <div>

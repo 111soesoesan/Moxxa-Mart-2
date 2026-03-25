@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import {
+  Bot,
   Send,
   MessageSquare,
   X,
@@ -78,6 +79,7 @@ export function OmniInbox({ shopId }: Props) {
   const supabase = createClient();
 
   const activeConv = conversations.find((c) => c.id === activeConvId) ?? null;
+  const isAiEnabled = !!activeConv?.channel?.ai_enabled;
 
   const loadConversations = useCallback(async () => {
     const data = await getConversations(shopId, {
@@ -305,6 +307,12 @@ export function OmniInbox({ shopId }: Props) {
                       <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full", meta.bg, meta.color)}>
                         {meta.label}
                       </span>
+                      {conv.channel?.ai_enabled && (
+                        <Badge className="h-4 px-1.5 text-[10px] bg-primary/10 text-primary border-primary/20 inline-flex items-center gap-1">
+                          <Bot className="h-3.5 w-3.5" />
+                          Bot
+                        </Badge>
+                      )}
                       {conv.unread_count > 0 && (
                         <Badge className="h-4 px-1.5 text-[10px]">{conv.unread_count}</Badge>
                       )}
@@ -332,7 +340,17 @@ export function OmniInbox({ shopId }: Props) {
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm truncate">{activeConv.customer_name ?? "Unknown"}</p>
-              <p className="text-xs text-muted-foreground capitalize">{activeConv.platform}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-muted-foreground capitalize">{activeConv.platform}</p>
+                {isAiEnabled ? (
+                  <Badge
+                    variant="default"
+                    className="bg-primary/10 text-primary border-primary/20"
+                  >
+                    AI Handling
+                  </Badge>
+                ) : null}
+              </div>
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

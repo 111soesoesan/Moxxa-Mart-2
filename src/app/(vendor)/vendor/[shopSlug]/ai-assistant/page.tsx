@@ -3,9 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getMyShops } from "@/actions/shops";
 import { getAIPersona, getAIConversationStats } from "@/actions/ai-personas";
 import { PersonaConfigForm } from "@/components/vendor/ai/PersonaConfigForm";
+import { getShopChannels } from "@/actions/messaging";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Bot, MessageSquare, Zap, TrendingUp } from "lucide-react";
+import { ChannelAIAssignment } from "@/components/vendor/ai/ChannelAIAssignment";
 
 type Props = {
   params: Promise<{ shopSlug: string }>;
@@ -27,6 +28,8 @@ export default async function AIAssistantPage({ params }: Props) {
     getAIConversationStats(shop.id),
   ]);
 
+  const channels = await getShopChannels(shop.id);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -35,16 +38,9 @@ export default async function AIAssistantPage({ params }: Props) {
           <div className="flex items-center gap-2 mb-1">
             <Bot className="h-6 w-6 text-primary" />
             <h1 className="text-xl font-semibold">AI Assistant</h1>
-            {persona?.is_active ? (
-              <Badge className="bg-green-500/10 text-green-700 border-green-200 dark:text-green-400">
-                Live
-              </Badge>
-            ) : (
-              <Badge variant="secondary">Inactive</Badge>
-            )}
           </div>
           <p className="text-sm text-muted-foreground">
-            Configure your AI-powered customer support persona for the storefront.
+            Configure your AI persona and assign it to the channels where it should auto-reply.
           </p>
         </div>
       </div>
@@ -103,7 +99,16 @@ export default async function AIAssistantPage({ params }: Props) {
       )}
 
       {/* Config form */}
-      <PersonaConfigForm shopId={shop.id} shopSlug={shopSlug} initial={persona} />
+      <div className="space-y-6">
+        {/* Channel assignment */}
+        <ChannelAIAssignment
+          shopId={shop.id}
+          channels={channels}
+        />
+
+        {/* Config form */}
+      <PersonaConfigForm shopId={shop.id} initial={persona} />
+      </div>
     </div>
   );
 }

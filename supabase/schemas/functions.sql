@@ -19,6 +19,16 @@ BEGIN
 END;
 $$;
 
+-- ─── touch_ai_persona_updated_at ───────────────────────────
+-- Stamps updated_at when an AI persona or usage log is updated.
+CREATE OR REPLACE FUNCTION public.touch_ai_persona_updated_at()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
 
 -- ─── handle_updated_at ──────────────────────────────────────
 -- Alias of set_updated_at, used by shop_blogs.
@@ -714,11 +724,24 @@ BEGIN
   UPDATE public.messaging_conversations
   SET
     last_message_at      = NEW.created_at,
-    last_message_preview = LEFT(NEW.content, 120),
+    last_message_preview = LEFT(
+      CASE
+        WHEN NEW.content_type = 'image' THEN
+          COALESCE(NULLIF(NEW.metadata->>'caption', ''), '[Image]')
+        ELSE
+          NEW.content
+      END,
+      120
+    ),
     unread_count         = CASE
                              WHEN NEW.direction = 'inbound' THEN unread_count + 1
                              ELSE unread_count
                            END,
+    status =
+      CASE
+        WHEN NEW.direction = 'inbound' AND status = 'resolved' THEN 'open'
+        ELSE status
+      END,
     updated_at           = NOW()
   WHERE id = NEW.conversation_id;
   RETURN NEW;

@@ -547,6 +547,55 @@ CREATE POLICY "service_role_full_access_messages"
   ON public.messaging_messages FOR ALL
   USING (auth.role() = 'service_role');
 
+-- ────────────────────────────────────────────────────────────
+-- TABLE: public.ai_personas
+-- RLS: ENABLED
+-- ────────────────────────────────────────────────────────────
+ALTER TABLE public.ai_personas ENABLE ROW LEVEL SECURITY;
+
+-- Vendors can manage their own persona
+CREATE POLICY "ai_personas_vendor_all"
+  ON public.ai_personas FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.shops
+      WHERE shops.id = ai_personas.shop_id
+        AND shops.owner_id = auth.uid()
+    )
+  );
+
+-- Anyone can read active personas (needed for chat API route using service key)
+CREATE POLICY "ai_personas_public_read"
+  ON public.ai_personas FOR SELECT
+  USING (is_active = true);
+
+-- Service role can bypass RLS for AI tables
+CREATE POLICY "service_role_full_access_ai_personas"
+  ON public.ai_personas FOR ALL
+  USING (auth.role() = 'service_role');
+
+
+-- ────────────────────────────────────────────────────────────
+-- TABLE: public.ai_conversation_logs
+-- RLS: ENABLED
+-- ────────────────────────────────────────────────────────────
+ALTER TABLE public.ai_conversation_logs ENABLE ROW LEVEL SECURITY;
+
+-- Vendors can view their own usage logs
+CREATE POLICY "ai_logs_vendor_select"
+  ON public.ai_conversation_logs FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.shops
+      WHERE shops.id = ai_conversation_logs.shop_id
+        AND shops.owner_id = auth.uid()
+    )
+  );
+
+-- Service role can bypass RLS for usage logs
+CREATE POLICY "service_role_full_access_ai_conversation_logs"
+  ON public.ai_conversation_logs FOR ALL
+  USING (auth.role() = 'service_role');
 
 -- ────────────────────────────────────────────────────────────
 -- ADMIN POLICIES (ALL TABLES)

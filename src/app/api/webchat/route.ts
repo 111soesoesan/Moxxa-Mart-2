@@ -21,14 +21,14 @@ export async function GET(req: NextRequest) {
 
     const { data: channel } = await supabase
       .from("messaging_channels")
-      .select("id, is_active")
+      .select("id, is_active, ai_enabled")
       .eq("shop_id", shop.id)
       .eq("platform", "webchat")
       .single();
 
-    const active = channel?.is_active ?? false;
-    if (!active || !channel) return NextResponse.json({ active: false });
-    if (!sessionId) return NextResponse.json({ active: true });
+    const shouldShowWidget = !!(channel?.is_active || channel?.ai_enabled);
+    if (!shouldShowWidget || !channel) return NextResponse.json({ active: false });
+    if (!sessionId) return NextResponse.json({ active: shouldShowWidget });
 
     const { data: existingConvRows } = await supabase
       .from("messaging_conversations")
@@ -60,7 +60,6 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createServiceClient();
-    const supabaseAny = supabase as any;
 
     const contentTypeHeader = req.headers.get("content-type") ?? "";
     const isMultipart = contentTypeHeader.includes("multipart/form-data");
@@ -110,27 +109,28 @@ export async function POST(req: NextRequest) {
 
     const { data: channel } = await supabase
       .from("messaging_channels")
-      .select("id, ai_enabled")
+      .select("id, is_active, ai_enabled")
       .eq("shop_id", shop.id)
       .eq("platform", "webchat")
-      .eq("is_active", true)
       .single();
-    if (!channel) return NextResponse.json({ error: "Web chat not enabled for this shop" }, { status: 404 });
+    if (!channel || (!channel.is_active && !channel.ai_enabled)) {
+      return NextResponse.json({ error: "Web chat not enabled for this shop" }, { status: 404 });
+    }
 
     // ── Get or create conversation ─────────────────────────────────────────────
     const { data: existingConv } = await supabase
       .from("messaging_conversations")
-      .select("id, ai_active")
+      .select("id, status")
       .eq("channel_id", channel.id)
       .eq("platform_conversation_id", session_id)
       .single();
 
     let conversationId: string;
-    let convAiActive = true;
+    let conversationStatus: string = "open";
 
     if (existingConv) {
       conversationId = existingConv.id;
-      convAiActive   = existingConv.ai_active ?? true;
+      conversationStatus = existingConv.status ?? "open";
     } else {
       const { data: newConv, error: convErr } = await supabase
         .from("messaging_conversations")
@@ -141,15 +141,14 @@ export async function POST(req: NextRequest) {
           platform_conversation_id: session_id,
           customer_name: sender_name || "Guest",
           status: "open",
-          ai_active: true,
         })
-        .select("id")
+        .select("id, status")
         .single();
       if (convErr || !newConv) {
         return NextResponse.json({ error: "Failed to create conversation" }, { status: 500 });
       }
       conversationId = newConv.id;
-      convAiActive   = true;
+      conversationStatus = newConv.status ?? "open";
     }
 
     // ── Process and save inbound message ──────────────────────────────────────
@@ -190,16 +189,14 @@ export async function POST(req: NextRequest) {
     });
 
     // ── AI auto-response ───────────────────────────────────────────────────────
-    // Only respond if: channel has AI enabled, conversation hasn't been taken over,
-    // and the shop has an active persona.
-    if (channel.ai_enabled && convAiActive) {
+    // Only respond if: channel has AI enabled, and the shop has a persona config.
+    if (channel.ai_enabled && conversationStatus !== "archived") {
       try {
-        const { data: persona } = await supabaseAny
+        const { data: persona } = await supabase
           .from("ai_personas")
           .select("*")
           .eq("shop_id", shop.id)
-          .eq("is_active", true)
-          .single();
+          .maybeSingle();
 
         if (persona) {
           // Fetch the last 30 messages (includes the just-saved inbound message)
@@ -210,24 +207,44 @@ export async function POST(req: NextRequest) {
             .order("created_at", { ascending: true })
             .limit(30);
 
-          const aiMessages = (history ?? []).map((msg: any) => ({
-            role: (msg.direction === "inbound" ? "user" : "assistant") as "user" | "assistant",
-            content:
-              msg.content_type === "image" && /^https?:\/\//i.test(msg.content)
-                ? [{ type: "image" as const, image: new URL(msg.content) }]
-                : (msg.content as string),
-          }));
+          const aiMessages = (history ?? []).map((msg) => {
+            const isUser = msg.direction === "inbound";
+
+            if (isUser) {
+              const isImageUrl =
+                msg.content_type === "image" &&
+                typeof msg.content === "string" &&
+                /^https?:\/\//i.test(msg.content);
+
+              if (isImageUrl) {
+                return {
+                  role: "user" as const,
+                  content: [{ type: "image" as const, image: new URL(msg.content) }],
+                };
+              }
+
+              return {
+                role: "user" as const,
+                content: msg.content as string,
+              };
+            }
+
+            // AI (assistant) messages in this app are plain text.
+            return {
+              role: "assistant" as const,
+              content: msg.content as string,
+            };
+          });
 
           const model = createGeminiModel();
           const systemPrompt = buildSystemPrompt(shop.name, persona.description_template, persona.system_prompt);
-          const tools = buildAITools(supabaseAny, shop);
+          const tools = buildAITools(supabase, shop);
 
           const result = await generateText({
             model,
             system: systemPrompt,
             messages: aiMessages,
             tools,
-            maxSteps: 5,
           });
 
           if (result.text) {
@@ -243,13 +260,13 @@ export async function POST(req: NextRequest) {
 
             // Log token usage
             try {
-              await supabaseAny.from("ai_conversation_logs").insert({
+              await supabase.from("ai_conversation_logs").insert({
                 shop_id: shop.id,
                 persona_id: persona.id,
                 session_id: session_id,
                 messages_count: 1,
-                tokens_input:  result.usage?.promptTokens ?? 0,
-                tokens_output: result.usage?.completionTokens ?? 0,
+                tokens_input: result.usage?.inputTokens ?? 0,
+                tokens_output: result.usage?.outputTokens ?? 0,
               });
             } catch {
               // Non-critical

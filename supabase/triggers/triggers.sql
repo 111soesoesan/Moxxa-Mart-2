@@ -165,6 +165,20 @@ CREATE TRIGGER trg_update_conversation_on_message_insert
   FOR EACH ROW
   EXECUTE FUNCTION public.update_conversation_on_message_insert();
 
+-- ─── ai_personas: updated_at ─────────────────────────────────
+DROP TRIGGER IF EXISTS ai_personas_touch_updated_at ON public.ai_personas;
+CREATE TRIGGER ai_personas_touch_updated_at
+  BEFORE UPDATE ON public.ai_personas
+  FOR EACH ROW
+  EXECUTE FUNCTION public.touch_ai_persona_updated_at();
+
+-- ─── ai_conversation_logs: updated_at ───────────────────────
+DROP TRIGGER IF EXISTS ai_conversation_logs_touch_updated_at ON public.ai_conversation_logs;
+CREATE TRIGGER ai_conversation_logs_touch_updated_at
+  BEFORE UPDATE ON public.ai_conversation_logs
+  FOR EACH ROW
+  EXECUTE FUNCTION public.touch_ai_persona_updated_at();
+
 
 -- ============================================================
 -- TRIGGER MAP SUMMARY (EXTENDED)

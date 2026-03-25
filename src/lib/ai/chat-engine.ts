@@ -54,12 +54,17 @@ export function buildAITools(
   supabase: any,
   shop: { id: string; name: string }
 ) {
+  // The `ai` package's `tool()` types are strict and can change across versions.
+  // Keep runtime behavior, but loosen compile-time typing for tool definitions.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const makeTool = (def: any) => tool(def);
+
   return {
-    search_products: tool({
+    search_products: makeTool({
       description:
         "Search the shop's product catalog by keyword, category, or description. " +
         "Use this when a customer asks what products are available or describes what they want.",
-      parameters: z.object({
+      inputSchema: z.object({
         query: z.string().describe("Search query (product name, category, or description)"),
         limit: z.number().optional().default(6).describe("Max results to return"),
       }),
@@ -78,27 +83,41 @@ export function buildAITools(
         }
         return {
           found: true,
-          products: products.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            price: p.price,
-            sale_price: p.sale_price,
-            effective_price: p.sale_price ?? p.price,
-            description: p.description?.slice(0, 200) ?? null,
-            in_stock: (p.stock ?? 0) > 0,
-            main_image: p.main_image,
-            product_type: p.product_type,
-            sku: p.sku,
-          })),
+          products: products.map((p: unknown) => {
+            const prod = p as {
+              id: string;
+              name: string;
+              price: number;
+              sale_price: number | null;
+              description: string | null;
+              stock: number | null;
+              product_type: string;
+              main_image: string | null;
+              sku: string | null;
+            };
+
+            return {
+              id: prod.id,
+              name: prod.name,
+              price: prod.price,
+              sale_price: prod.sale_price,
+              effective_price: prod.sale_price ?? prod.price,
+              description: prod.description?.slice(0, 200) ?? null,
+              in_stock: (prod.stock ?? 0) > 0,
+              main_image: prod.main_image,
+              product_type: prod.product_type,
+              sku: prod.sku,
+            };
+          }),
         };
       },
     }),
 
-    get_product_details: tool({
+    get_product_details: makeTool({
       description:
         "Get full details for a specific product including all variations, sizes, colors, " +
         "and stock levels. Use this when a customer wants to know more about a specific item.",
-      parameters: z.object({
+      inputSchema: z.object({
         product_id: z.string().describe("The product ID to look up"),
       }),
       execute: async ({ product_id }: { product_id: string }) => {
@@ -116,18 +135,29 @@ export function buildAITools(
 
         if (!product) return { found: false };
 
-        const p = product as any;
+        const p = product;
         const variations = (p.product_variations ?? [])
-          .filter((v: any) => v.is_active)
-          .map((v: any) => ({
-            id: v.id,
-            attributes: v.attribute_combination,
-            price: v.price,
-            sale_price: v.sale_price,
-            effective_price: v.sale_price ?? v.price,
-            in_stock: (v.stock_quantity ?? 0) > 0,
-            stock_qty: v.stock_quantity,
-          }));
+          .filter((v: unknown) => (v as { is_active: boolean }).is_active)
+          .map((v: unknown) => {
+            const pv = v as {
+              id: string;
+              attribute_combination: unknown;
+              price: number;
+              sale_price: number | null;
+              stock_quantity: number | null;
+              is_active: boolean;
+            };
+
+            return {
+              id: pv.id,
+              attributes: pv.attribute_combination,
+              price: pv.price,
+              sale_price: pv.sale_price,
+              effective_price: pv.sale_price ?? pv.price,
+              in_stock: (pv.stock_quantity ?? 0) > 0,
+              stock_qty: pv.stock_quantity,
+            };
+          });
 
         return {
           found: true,
@@ -148,11 +178,11 @@ export function buildAITools(
       },
     }),
 
-    check_discounts: tool({
+    check_discounts: makeTool({
       description:
         "Check if any products have active sale prices or promotions. " +
         "Use this when a customer asks about deals, discounts, or sales.",
-      parameters: z.object({
+      inputSchema: z.object({
         limit: z.number().optional().default(8),
       }),
       execute: async ({ limit }: { limit: number }) => {
@@ -170,26 +200,36 @@ export function buildAITools(
         }
         return {
           has_discounts: true,
-          products: onSale.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            original_price: p.price,
-            sale_price: p.sale_price,
-            savings: p.price - (p.sale_price ?? p.price),
-            discount_percent: Math.round(
-              ((p.price - (p.sale_price ?? p.price)) / p.price) * 100
-            ),
-            main_image: p.main_image,
-          })),
+          products: onSale.map((p: unknown) => {
+            const prod = p as {
+              id: string;
+              name: string;
+              price: number;
+              sale_price: number | null;
+              main_image: string | null;
+            };
+
+            return {
+              id: prod.id,
+              name: prod.name,
+              original_price: prod.price,
+              sale_price: prod.sale_price,
+              savings: prod.price - (prod.sale_price ?? prod.price),
+              discount_percent: Math.round(
+                ((prod.price - (prod.sale_price ?? prod.price)) / prod.price) * 100
+              ),
+              main_image: prod.main_image,
+            };
+          }),
         };
       },
     }),
 
-    take_order: tool({
+    take_order: makeTool({
       description:
         "Initiate the order process. Call this when a customer confirms they want to buy. " +
         "Collect their name, phone, and delivery address first, then confirm before placing.",
-      parameters: z.object({
+      inputSchema: z.object({
         step: z
           .enum(["collect_info", "confirm", "submit"])
           .describe("Order step: collect_info → confirm → submit"),

@@ -277,7 +277,12 @@ This keeps two sources of truth in sync: the authoritative `inventory.stock_quan
 | **Function** | `update_conversation_on_message_insert()` |
 | **Security** | SECURITY DEFINER |
 
-**What it does:** When a new message is logged, it updates the parent `messaging_conversations.last_message_at` and `last_message_preview`. If the message is inbound, it also increments the `unread_count`.
+**What it does:** When a new message is logged, it updates the parent `messaging_conversations.last_message_at` and `last_message_preview`.
+
+Side effects:
+- For `content_type = 'image'`, the preview uses `metadata->>'caption'` (or `[Image]` if missing) instead of the raw URL.
+- For inbound messages, it increments `unread_count`.
+- If an inbound message arrives while the conversation is `status = 'resolved'`, it reopens the thread by setting `status = 'open'`.
 
 ---
 

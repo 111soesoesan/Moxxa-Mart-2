@@ -11,6 +11,7 @@ export type MessagingChannel = {
   shop_id: string;
   platform: MessagingPlatform;
   is_active: boolean;
+  ai_enabled: boolean;
   config: Record<string, unknown>;
   created_at: string;
   updated_at: string;

@@ -1,4 +1,4 @@
-import { streamText } from "ai";
+import { streamText, type ModelMessage } from "ai";
 import { createServiceClient } from "@/lib/supabase/server";
 import { buildSystemPrompt, createGeminiModel, buildAITools } from "@/lib/ai/chat-engine";
 
@@ -16,7 +16,6 @@ export async function POST(
     };
 
     const supabaseTyped = await createServiceClient();
-    const supabase = supabaseTyped as any;
 
     const { data: shop } = await supabaseTyped
       .from("shops")
@@ -26,58 +25,62 @@ export async function POST(
 
     if (!shop) return new Response("Shop not found", { status: 404 });
 
-    const { data: persona } = await supabase
+    const { data: persona } = await supabaseTyped
       .from("ai_personas")
       .select("*")
       .eq("shop_id", shop.id)
-      .eq("is_active", true)
-      .single();
+      .maybeSingle();
 
     if (!persona) {
-      return new Response("AI assistant not enabled for this shop", { status: 404 });
+      return new Response("AI assistant not configured for this shop", { status: 404 });
     }
 
     const model = createGeminiModel();
     const systemPrompt = buildSystemPrompt(shop.name, persona.description_template, persona.system_prompt);
-    const tools = buildAITools(supabase, shop);
+    const tools = buildAITools(supabaseTyped, shop);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const modelMessages: ModelMessage[] = (messages ?? []).map((m) => ({
+      role: m.role === "assistant" ? "assistant" : "user",
+      content: m.content,
+    }));
+
     const result = streamText({
       model,
       system: systemPrompt,
-      messages: messages as any,
-      temperature: parseFloat(persona.temperature) || 0.7,
-      maxSteps: 5,
+      messages: modelMessages,
+      temperature: persona.temperature ?? 0.7,
       tools,
-      onFinish: async ({ usage }: { usage?: { promptTokens?: number; completionTokens?: number } }) => {
+      onFinish: async (event) => {
         if (!sessionId) return;
         try {
           const svc = await createServiceClient();
-          const svcAny = svc as any;
-          const { data: existing } = await svcAny
+          const { data: existing } = await svc
             .from("ai_conversation_logs")
             .select("id, messages_count, tokens_input, tokens_output")
             .eq("shop_id", shop.id)
             .eq("session_id", sessionId)
             .single();
 
+          const inputTokens = event.totalUsage.inputTokens ?? 0;
+          const outputTokens = event.totalUsage.outputTokens ?? 0;
+
           if (existing) {
-            await svcAny
+            await svc
               .from("ai_conversation_logs")
               .update({
                 messages_count: existing.messages_count + 1,
-                tokens_input: existing.tokens_input + (usage?.promptTokens ?? 0),
-                tokens_output: existing.tokens_output + (usage?.completionTokens ?? 0),
+                tokens_input: existing.tokens_input + inputTokens,
+                tokens_output: existing.tokens_output + outputTokens,
               })
               .eq("id", existing.id);
           } else {
-            await svcAny.from("ai_conversation_logs").insert({
+            await svc.from("ai_conversation_logs").insert({
               shop_id: shop.id,
               persona_id: persona.id,
               session_id: sessionId,
               messages_count: 1,
-              tokens_input: usage?.promptTokens ?? 0,
-              tokens_output: usage?.completionTokens ?? 0,
+              tokens_input: inputTokens,
+              tokens_output: outputTokens,
             });
           }
         } catch {
@@ -86,7 +89,7 @@ export async function POST(
       },
     });
 
-    return result.toDataStreamResponse();
+    return result.toTextStreamResponse();
   } catch (err) {
     console.error("[AI Chat] Error:", err);
     return new Response("Internal server error", { status: 500 });

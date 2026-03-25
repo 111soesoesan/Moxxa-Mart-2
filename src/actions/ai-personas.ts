@@ -22,7 +22,6 @@ export type UpsertPersonaInput = {
   description_template: "professional" | "friendly" | "streetwear" | "tech" | "luxury";
   system_prompt: string;
   greeting_message: string;
-  is_active: boolean;
 };
 
 // ─── Get persona for a shop ───────────────────────────────────────────────────
@@ -61,7 +60,8 @@ export async function upsertAIPersona(
     description_template: input.description_template,
     system_prompt: input.system_prompt.trim(),
     greeting_message: input.greeting_message.trim() || "Hi! How can I help you find something today? 😊",
-    is_active: input.is_active,
+    // Channel assignment now controls where AI is live.
+    is_active: true,
   };
 
   const { data, error } = await supabase
@@ -192,8 +192,7 @@ export async function getActivePersonaBySlug(shopSlug: string): Promise<{
     .from("ai_personas")
     .select("*")
     .eq("shop_id", shop.id)
-    .eq("is_active", true)
-    .single();
+    .maybeSingle();
 
   return { persona: (persona as AIPersona) ?? null, shopId: shop.id, shopName: shop.name };
 }
