@@ -1,4 +1,4 @@
-import { streamText, tool } from "ai";
+import { convertToModelMessages, streamText, tool, type UIMessage } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -59,7 +59,7 @@ export async function POST(
   try {
     const body = await req.json();
     const { messages, sessionId } = body as {
-      messages: { role: string; content: string }[];
+      messages: UIMessage[];
       sessionId?: string;
     };
 
@@ -103,7 +103,7 @@ export async function POST(
     const streamOptions: any = {
       model: google("gemini-2.5-flash"),
       system: systemPrompt,
-      messages: messages as any,
+      messages: convertToModelMessages(messages),
       temperature: parseFloat(persona.temperature) || 0.7,
       maxSteps: 5,
       tools: {
@@ -112,7 +112,7 @@ export async function POST(
           description:
             "Search the shop's product catalog by keyword, category, or description. " +
             "Use this when a customer asks what products are available or describes what they want.",
-          parameters: z.object({
+          inputSchema: z.object({
             query: z.string().describe("Search query (product name, category, or description)"),
             limit: z.number().optional().default(6).describe("Max results to return"),
           }),
@@ -155,7 +155,7 @@ export async function POST(
           description:
             "Get full details for a specific product including all variations, sizes, colors, " +
             "and stock levels. Use this when a customer wants to know more about a specific item.",
-          parameters: z.object({
+          inputSchema: z.object({
             product_id: z.string().describe("The product ID to look up"),
           }),
           execute: async ({ product_id }: { product_id: string }) => {
@@ -210,7 +210,7 @@ export async function POST(
           description:
             "Check if any products have active sale prices or promotions. " +
             "Use this when a customer asks about deals, discounts, or sales.",
-          parameters: z.object({
+          inputSchema: z.object({
             limit: z.number().optional().default(8),
           }),
           execute: async ({ limit }: { limit: number }) => {
@@ -249,7 +249,7 @@ export async function POST(
           description:
             "Initiate the order process. Call this when a customer confirms they want to buy. " +
             "Collect their name, phone, and delivery address first, then confirm before placing.",
-          parameters: z.object({
+          inputSchema: z.object({
             step: z
               .enum(["collect_info", "confirm", "submit"])
               .describe("Order step: collect_info → confirm → submit"),
@@ -436,7 +436,7 @@ export async function POST(
 
     const result = streamText(streamOptions);
 
-    return result.toDataStreamResponse();
+    return result.toUIMessageStreamResponse();
   } catch (err) {
     console.error("[AI Chat] Error:", err);
     return new Response("Internal server error", { status: 500 });

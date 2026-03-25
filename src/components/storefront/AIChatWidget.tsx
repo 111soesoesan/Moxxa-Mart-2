@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useChat } from "ai/react";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport, type UIMessage } from "ai";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -28,6 +29,26 @@ function generateSessionId() {
   return `ai_${crypto.randomUUID()}`;
 }
 
+function createGreetingMessage(greetingMessage: string): UIMessage {
+  return {
+    id: "greeting",
+    role: "assistant",
+    parts: [
+      {
+        type: "text",
+        text: greetingMessage,
+      },
+    ],
+  };
+}
+
+function getMessageText(message: UIMessage): string {
+  return message.parts
+    .filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join("\n");
+}
+
 export function AIChatWidget({
   shopSlug,
   shopName,
@@ -35,6 +56,7 @@ export function AIChatWidget({
   greetingMessage,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
+  const [input, setInput] = useState("");
   const [sessionId] = useState(() => {
     if (typeof window === "undefined") return generateSessionId();
     const key = `ai_session_${shopSlug}`;
@@ -47,19 +69,17 @@ export function AIChatWidget({
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const initialMessages = [createGreetingMessage(greetingMessage)];
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, error, reload, setMessages } =
-    useChat({
+  const { messages, error, regenerate, sendMessage, setMessages, status } = useChat({
+    messages: initialMessages,
+    transport: new DefaultChatTransport({
       api: `/api/chat/${shopSlug}`,
       body: { sessionId },
-      initialMessages: [
-        {
-          id: "greeting",
-          role: "assistant",
-          content: greetingMessage,
-        },
-      ],
-    });
+    }),
+  });
+
+  const isLoading = status === "submitted" || status === "streaming";
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -74,13 +94,18 @@ export function AIChatWidget({
   }, [isOpen]);
 
   function handleReset() {
-    setMessages([
-      {
-        id: "greeting",
-        role: "assistant",
-        content: greetingMessage,
-      },
-    ]);
+    setMessages(initialMessages);
+    setInput("");
+  }
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const text = input.trim();
+    if (!text || isLoading) return;
+
+    setInput("");
+    await sendMessage({ text });
   }
 
   const hasMessages = messages.length > 1;
@@ -149,29 +174,36 @@ export function AIChatWidget({
         <ScrollArea className="flex-1 px-4 py-3">
           <div className="space-y-3">
             {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={cn(
-                  "flex gap-2",
-                  msg.role === "user" ? "justify-end" : "justify-start"
-                )}
-              >
-                {msg.role === "assistant" && (
-                  <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                    <Bot className="h-3.5 w-3.5 text-primary" />
+              (() => {
+                const content = getMessageText(msg);
+                if (!content) return null;
+
+                return (
+                  <div
+                    key={msg.id}
+                    className={cn(
+                      "flex gap-2",
+                      msg.role === "user" ? "justify-end" : "justify-start"
+                    )}
+                  >
+                    {msg.role === "assistant" && (
+                      <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                        <Bot className="h-3.5 w-3.5 text-primary" />
+                      </div>
+                    )}
+                    <div
+                      className={cn(
+                        "rounded-2xl px-3.5 py-2.5 text-sm max-w-[80%] leading-relaxed",
+                        msg.role === "user"
+                          ? "bg-primary text-primary-foreground rounded-br-sm"
+                          : "bg-muted rounded-bl-sm"
+                      )}
+                    >
+                      <MessageContent content={content} />
+                    </div>
                   </div>
-                )}
-                <div
-                  className={cn(
-                    "rounded-2xl px-3.5 py-2.5 text-sm max-w-[80%] leading-relaxed",
-                    msg.role === "user"
-                      ? "bg-primary text-primary-foreground rounded-br-sm"
-                      : "bg-muted rounded-bl-sm"
-                  )}
-                >
-                  <MessageContent content={msg.content} />
-                </div>
-              </div>
+                );
+              })()
             ))}
 
             {isLoading && (
@@ -194,7 +226,7 @@ export function AIChatWidget({
                 <p className="text-xs text-destructive text-center">
                   Something went wrong. Please try again.
                 </p>
-                <Button size="sm" variant="outline" onClick={() => reload()}>
+                <Button size="sm" variant="outline" onClick={() => regenerate()}>
                   Retry
                 </Button>
               </div>
@@ -212,7 +244,7 @@ export function AIChatWidget({
           <Input
             ref={inputRef}
             value={input}
-            onChange={handleInputChange}
+            onChange={(event) => setInput(event.target.value)}
             placeholder="Ask about products, pricing…"
             disabled={isLoading}
             className="flex-1 rounded-full text-sm h-9"
