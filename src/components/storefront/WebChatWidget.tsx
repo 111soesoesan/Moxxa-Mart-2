@@ -97,6 +97,40 @@ export function WebChatWidget({ shopSlug, shopName = "Support" }: Props) {
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const supabase = createClient();
 
+  const refreshHistory = useCallback(async () => {
+    const histRes = await fetch(
+      `/api/webchat?shop_slug=${encodeURIComponent(shopSlug)}&session_id=${encodeURIComponent(
+        sessionId.current
+      )}`
+    );
+    const histData = (await histRes.json()) as {
+      active?: boolean;
+      conversation_id?: string | null;
+      history?: ChatMessage[];
+    };
+
+    if (histData.conversation_id) {
+      setConversationId(histData.conversation_id);
+    }
+
+    if (histData.active && Array.isArray(histData.history)) {
+      setMessages(
+        histData.history.map((m) => ({
+          ...m,
+          content_type: ((m as unknown as { content_type?: ChatMessage["content_type"] }).content_type ??
+            "text") as ChatMessage["content_type"],
+          metadata: (m as unknown as { metadata?: { caption?: string | null } | null }).metadata
+            ? {
+                caption:
+                  (m as unknown as { metadata?: { caption?: string | null } | null }).metadata
+                    ?.caption ?? null,
+              }
+            : null,
+        }))
+      );
+    }
+  }, [shopSlug]);
+
   useEffect(() => {
     if (!imagePreviewUrl) return;
     return () => {
@@ -296,32 +330,8 @@ export function WebChatWidget({ shopSlug, shopName = "Support" }: Props) {
           setConversationId(data.conversation_id);
         }
 
-        // Refresh history so the inbound image appears (realtime subscription only appends vendor outbound).
-        const histRes = await fetch(
-          `/api/webchat?shop_slug=${encodeURIComponent(shopSlug)}&session_id=${encodeURIComponent(
-            sessionId.current
-          )}`
-        );
-        const histData = (await histRes.json()) as {
-          active?: boolean;
-          history?: ChatMessage[];
-        };
-        if (histData.active && Array.isArray(histData.history)) {
-          setMessages(
-            histData.history.map((m) => ({
-              ...m,
-              content_type: ((m as unknown as { content_type?: ChatMessage["content_type"] }).content_type ??
-                "text") as ChatMessage["content_type"],
-              metadata: (m as unknown as { metadata?: { caption?: string | null } | null }).metadata
-                ? {
-                    caption:
-                      (m as unknown as { metadata?: { caption?: string | null } | null }).metadata
-                        ?.caption ?? null,
-                  }
-                : null,
-            }))
-          );
-        }
+        // Refresh history so the first response is visible even before realtime subscribes.
+        await refreshHistory();
       } catch {
         // ignore; sending false below
       } finally {
@@ -366,6 +376,9 @@ export function WebChatWidget({ shopSlug, shopName = "Support" }: Props) {
       if (data.conversation_id && data.conversation_id !== conversationId) {
         setConversationId(data.conversation_id);
       }
+
+      // Refresh history so the first AI reply is not missed on a new conversation.
+      await refreshHistory();
     } catch {
       // ignore
     } finally {
