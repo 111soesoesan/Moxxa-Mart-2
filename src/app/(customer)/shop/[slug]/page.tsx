@@ -12,6 +12,7 @@ import { MapPin, Phone, Banknote, Landmark } from "lucide-react";
 type Props = { params: Promise<{ slug: string }> };
 
 export default async function ShopPage({ params }: Props) {
+  console.log("[Shop Page] Rendering");
   const { slug } = await params;
   const shop = await getShopBySlug(slug);
   if (!shop) notFound();

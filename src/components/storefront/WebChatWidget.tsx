@@ -325,7 +325,18 @@ export function WebChatWidget({ shopSlug, shopName = "Support" }: Props) {
 
       try {
         const res = await fetch("/api/webchat", { method: "POST", body: formData });
-        const data = await res.json() as { ok?: boolean; conversation_id?: string };
+        const data = (await res.json()) as {
+          ok?: boolean;
+          conversation_id?: string;
+          ai_outcome?: string;
+          ai_diagnostics?: unknown;
+        };
+        if (data.ai_outcome != null) {
+          console.info("[Moxxa Webchat] ai_outcome:", data.ai_outcome);
+        }
+        if (data.ai_diagnostics != null) {
+          console.info("[Moxxa Webchat] ai_diagnostics (WEBCHAT_AI_DIAGNOSTICS=1):", data.ai_diagnostics);
+        }
         if (data.conversation_id && data.conversation_id !== conversationId) {
           setConversationId(data.conversation_id);
         }
@@ -372,7 +383,17 @@ export function WebChatWidget({ shopSlug, shopName = "Support" }: Props) {
         }),
       });
 
-      const data = (await res.json()) as { conversation_id?: string };
+      const data = (await res.json()) as {
+        conversation_id?: string;
+        ai_outcome?: string;
+        ai_diagnostics?: unknown;
+      };
+      if (data.ai_outcome != null) {
+        console.info("[Moxxa Webchat] ai_outcome:", data.ai_outcome);
+      }
+      if (data.ai_diagnostics != null) {
+        console.info("[Moxxa Webchat] ai_diagnostics (WEBCHAT_AI_DIAGNOSTICS=1):", data.ai_diagnostics);
+      }
       if (data.conversation_id && data.conversation_id !== conversationId) {
         setConversationId(data.conversation_id);
       }

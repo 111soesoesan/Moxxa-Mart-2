@@ -2,10 +2,19 @@ import { generateText, stepCountIs, type ModelMessage } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { buildSystemPrompt, createGeminiModel, buildAITools } from "./chat-engine";
+import {
+  type EmitAiTrace,
+  serializeAiError,
+} from "./ai-trace";
 
 export const MAX_AGENT_STEPS = 5;
 
+/** Logged on init; keep in sync with `createGeminiModel` in chat-engine.ts */
+const SHOP_AI_MODEL_ID = "gemini-2.5-flash";
+
 type AiPersonaRow = Database["public"]["Tables"]["ai_personas"]["Row"];
+
+const noopTrace: EmitAiTrace = () => Date.now();
 
 async function persistAiConversationLog(
   supabase: SupabaseClient<Database>,
@@ -62,14 +71,15 @@ async function finalizeGeneration(
     steps: { length: number };
     finishReason: string;
     totalUsage: { inputTokens?: number | null; outputTokens?: number | null };
-  }
+  },
+  emitTrace: EmitAiTrace
 ) {
   if (!sessionId) return;
 
   const hitStepCap =
     result.steps.length >= MAX_AGENT_STEPS && result.finishReason === "tool-calls";
   if (hitStepCap) {
-    console.warn(`[Shop AI] Step cap reached for shop "${shop.name}" (${shop.id})`);
+    emitTrace("shop_agent_step_cap", { shopId: shop.id, shopName: shop.name });
   }
 
   try {
@@ -80,15 +90,18 @@ async function finalizeGeneration(
       inputTokens: result.totalUsage.inputTokens ?? 0,
       outputTokens: result.totalUsage.outputTokens ?? 0,
     });
+    emitTrace("shop_agent_persist_logs_ok", { shopId: shop.id });
   } catch (err) {
-    console.error("[Shop AI] Failed to persist ai_conversation_logs", err);
+    emitTrace("shop_agent_persist_logs_failed", {
+      shopId: shop.id,
+      error: serializeAiError(err),
+    });
   }
 }
 
 /**
  * Shop AI: tools + step limit, then token logging. Matches UMA webhook behavior by
- * falling back to plain text if tool generation fails or returns no text (common when
- * the model stops after tool rounds without a final assistant message).
+ * falling back to plain text if tool generation fails or returns no text.
  */
 export async function runShopAgentGenerate({
   supabase,
@@ -96,14 +109,48 @@ export async function runShopAgentGenerate({
   persona,
   messages,
   sessionId,
+  emitTrace: emitTraceProp,
 }: {
   supabase: SupabaseClient<Database>;
   shop: { id: string; name: string };
   persona: AiPersonaRow;
   messages: ModelMessage[];
   sessionId: string | undefined;
+  /** Optional: correlate with /api/webchat diagnostics */
+  emitTrace?: EmitAiTrace;
 }) {
-  const model = createGeminiModel();
+  const emitTrace = emitTraceProp ?? noopTrace;
+
+  emitTrace("shop_agent_start", {
+    shopId: shop.id,
+    personaId: persona.id,
+    messageCount: messages.length,
+    sessionIdPresent: Boolean(sessionId),
+  });
+
+  const geminiConfigured = Boolean(process.env.GEMINI_API_KEY?.trim());
+  emitTrace("shop_agent_env", {
+    geminiApiKeyConfigured: geminiConfigured,
+    model: SHOP_AI_MODEL_ID,
+  });
+
+  if (!geminiConfigured) {
+    emitTrace("shop_agent_blocked_no_api_key", { shopId: shop.id });
+  }
+
+  let model;
+  try {
+    const t0 = Date.now();
+    model = createGeminiModel();
+    emitTrace("shop_agent_model_ok", { shopId: shop.id }, t0);
+  } catch (err) {
+    emitTrace("shop_agent_model_error", {
+      shopId: shop.id,
+      error: serializeAiError(err),
+    });
+    throw err;
+  }
+
   const systemPrompt = buildSystemPrompt(
     shop.name,
     persona.description_template,
@@ -111,6 +158,16 @@ export async function runShopAgentGenerate({
   );
   const tools = buildAITools(supabase, shop);
   const temperature = persona.temperature ?? 0.7;
+  const toolNames = Object.keys(tools);
+
+  emitTrace("shop_agent_ready", {
+    shopId: shop.id,
+    personaName: persona.name,
+    temperature,
+    maxAgentSteps: MAX_AGENT_STEPS,
+    toolCount: toolNames.length,
+    tools: toolNames,
+  });
 
   const base = {
     model,
@@ -120,38 +177,104 @@ export async function runShopAgentGenerate({
   };
 
   try {
+    const tGen = Date.now();
+    emitTrace("shop_agent_generate_tools_begin", { shopId: shop.id });
+
     const withTools = await generateText({
       ...base,
       tools,
       stopWhen: stepCountIs(MAX_AGENT_STEPS),
       onStepFinish: (event) => {
-        console.log(`[Shop AI] [Step ${event.stepNumber}] Reason: ${event.finishReason}`);
-        event.toolCalls.forEach((call) => {
-          console.log(`[Shop AI]   Tool call: ${call.toolName}`, call.input);
+        emitTrace("shop_agent_step_finish", {
+          stepNumber: event.stepNumber,
+          finishReason: event.finishReason,
+          toolCallCount: event.toolCalls.length,
         });
-        event.toolResults.forEach((res) => {
-          console.log(`[Shop AI]   Tool result (${res.toolName}):`, res.output);
+        event.toolCalls.forEach((call) => {
+          console.error(
+            "[AI_TRACE]",
+            JSON.stringify({
+              stage: "tool_call",
+              toolName: call.toolName,
+              shopId: shop.id,
+            })
+          );
         });
       },
     });
 
+    emitTrace("shop_agent_generate_tools_end", {
+      shopId: shop.id,
+      finishReason: withTools.finishReason,
+      textLength: withTools.text?.length ?? 0,
+      steps: withTools.steps.length,
+      warningCount: withTools.warnings?.length ?? 0,
+    });
+
+    if (withTools.warnings?.length) {
+      emitTrace("shop_agent_model_warnings", {
+        shopId: shop.id,
+        warningsPreview: JSON.stringify(withTools.warnings).slice(0, 800),
+      });
+    }
+
     if (!withTools.text?.trim()) {
-      console.warn("[Shop AI] Empty text after tool run; retrying without tools", {
+      emitTrace("shop_agent_empty_text_retry_plain", {
         shopId: shop.id,
         finishReason: withTools.finishReason,
         steps: withTools.steps.length,
       });
-      const plain = await generateText(base);
-      await finalizeGeneration(supabase, shop, persona, sessionId, plain);
-      return plain;
+      try {
+        const tPlain = Date.now();
+        const plain = await generateText(base);
+        emitTrace("shop_agent_generate_plain_ok", {
+          shopId: shop.id,
+          textLength: plain.text?.length ?? 0,
+          finishReason: plain.finishReason,
+        }, tPlain);
+        await finalizeGeneration(supabase, shop, persona, sessionId, plain, emitTrace);
+        emitTrace("shop_agent_done", { path: "plain_fallback", shopId: shop.id });
+        return plain;
+      } catch (plainErr) {
+        emitTrace("shop_agent_generate_plain_failed", {
+          shopId: shop.id,
+          error: serializeAiError(plainErr),
+        });
+        throw plainErr;
+      }
     }
 
-    await finalizeGeneration(supabase, shop, persona, sessionId, withTools);
+    await finalizeGeneration(supabase, shop, persona, sessionId, withTools, emitTrace);
+    emitTrace("shop_agent_done", {
+      path: "tools",
+      shopId: shop.id,
+      textLength: withTools.text.length,
+    });
     return withTools;
   } catch (toolErr) {
-    console.error("[Shop AI] generateText with tools failed; retrying without tools", toolErr);
-    const plain = await generateText(base);
-    await finalizeGeneration(supabase, shop, persona, sessionId, plain);
-    return plain;
+    emitTrace("shop_agent_generate_tools_failed", {
+      shopId: shop.id,
+      error: serializeAiError(toolErr),
+    });
+
+    try {
+      const tPlain = Date.now();
+      emitTrace("shop_agent_generate_plain_after_tool_error_begin", { shopId: shop.id });
+      const plain = await generateText(base);
+      emitTrace("shop_agent_generate_plain_after_tool_error_ok", {
+        shopId: shop.id,
+        textLength: plain.text?.length ?? 0,
+      }, tPlain);
+      await finalizeGeneration(supabase, shop, persona, sessionId, plain, emitTrace);
+      emitTrace("shop_agent_done", { path: "plain_after_tool_error", shopId: shop.id });
+      return plain;
+    } catch (plainErr) {
+      emitTrace("shop_agent_fatal_both_paths_failed", {
+        shopId: shop.id,
+        toolPathError: serializeAiError(toolErr),
+        plainPathError: serializeAiError(plainErr),
+      });
+      throw plainErr;
+    }
   }
 }
