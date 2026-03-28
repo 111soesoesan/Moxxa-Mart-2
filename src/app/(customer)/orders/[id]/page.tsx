@@ -14,6 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Upload, CheckCircle } from "lucide-react";
 import Link from "next/link";
+import { PrintReceiptDialog } from "@/components/receipts/PrintReceiptDialog";
+import { buildOrderReceiptData } from "@/lib/receipt/build-order-receipt-data";
 
 type Order = NonNullable<Awaited<ReturnType<typeof getOrderById>>>;
 
@@ -87,9 +89,12 @@ export default function OrderDetailPage() {
         <p className="text-xs text-muted-foreground font-mono mt-0.5">{order.id}</p>
       </div>
 
-      <div className="flex gap-3 flex-wrap">
-        <StatusBadge type="order" value={order.status} />
-        <StatusBadge type="payment" value={order.payment_status} />
+      <div className="flex w-full flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge type="order" value={order.status} />
+          <StatusBadge type="payment" value={order.payment_status} />
+        </div>
+        <PrintReceiptDialog data={buildOrderReceiptData(order)} />
       </div>
 
       {/* Payment Method Card */}

@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { OrderStatusActions } from "@/components/vendor/OrderStatusActions";
+import { PrintReceiptDialog } from "@/components/receipts/PrintReceiptDialog";
+import { buildOrderReceiptData } from "@/lib/receipt/build-order-receipt-data";
 import { formatCurrency, formatDateTime, formatVariant } from "@/lib/utils";
 import { ArrowLeft, User, MapPin, Phone, Mail, FileImage, Banknote, DollarSign, Wallet } from "lucide-react";
 
@@ -56,9 +58,15 @@ export default async function VendorOrderDetailPage({ params }: Props) {
             {formatDateTime(order.created_at)}
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <StatusBadge type="order" value={order.status} />
-          <StatusBadge type="payment" value={order.payment_status} />
+        <div className="flex w-full flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge type="order" value={order.status} />
+            <StatusBadge type="payment" value={order.payment_status} />
+          </div>
+          <PrintReceiptDialog
+            data={buildOrderReceiptData(order)}
+            triggerLabel="Print receipt"
+          />
         </div>
       </div>
 
