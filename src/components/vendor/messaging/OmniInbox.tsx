@@ -8,6 +8,7 @@ import {
   sendMessage,
   markConversationRead,
   updateConversationStatus,
+  setConversationAIActive,
   type MessagingConversation,
   type MessagingMessage,
   type MessagingPlatform,
@@ -36,7 +37,11 @@ import {
   Archive,
   RefreshCw,
   Paperclip,
+  User,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
 const PLATFORM_META: Record<
   string,
@@ -74,12 +79,15 @@ export function OmniInbox({ shopId }: Props) {
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [platformFilter, setPlatformFilter] = useState<MessagingPlatform | "all">("all");
   const [statusFilter, setStatusFilter] = useState<"open" | "resolved" | "archived">("open");
+  const [aiToggleBusy, setAiToggleBusy] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const supabase = createClient();
 
   const activeConv = conversations.find((c) => c.id === activeConvId) ?? null;
-  const isAiEnabled = !!activeConv?.channel?.ai_enabled;
+  const channelAiOn = !!activeConv?.channel?.ai_enabled;
+  const aiAutoReplies =
+    channelAiOn && !!activeConv?.ai_active;
 
   const loadConversations = useCallback(async () => {
     const data = await getConversations(shopId, {
@@ -217,6 +225,23 @@ export function OmniInbox({ shopId }: Props) {
     if (convId === activeConvId) setActiveConvId(null);
   };
 
+  const handleConversationAiToggle = async (checked: boolean) => {
+    if (!activeConvId || !activeConv) return;
+    setAiToggleBusy(true);
+    const prev = activeConv.ai_active;
+    setConversations((p) =>
+      p.map((c) => (c.id === activeConvId ? { ...c, ai_active: checked } : c))
+    );
+    const res = await setConversationAIActive(activeConvId, checked);
+    if (res.error) {
+      setConversations((p) =>
+        p.map((c) => (c.id === activeConvId ? { ...c, ai_active: prev } : c))
+      );
+      toast.error(res.error);
+    }
+    setAiToggleBusy(false);
+  };
+
   return (
     <div className="flex h-full border rounded-lg overflow-hidden bg-background">
       {/* ── Conversation list (left panel) ── */}
@@ -307,10 +332,19 @@ export function OmniInbox({ shopId }: Props) {
                       <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full", meta.bg, meta.color)}>
                         {meta.label}
                       </span>
-                      {conv.channel?.ai_enabled && (
+                      {conv.channel?.ai_enabled && conv.ai_active && (
                         <Badge className="h-4 px-1.5 text-[10px] bg-primary/10 text-primary border-primary/20 inline-flex items-center gap-1">
                           <Bot className="h-3.5 w-3.5" />
-                          Bot
+                          AI
+                        </Badge>
+                      )}
+                      {conv.channel?.ai_enabled && !conv.ai_active && (
+                        <Badge
+                          variant="outline"
+                          className="h-4 px-1.5 text-[10px] text-muted-foreground inline-flex items-center gap-1"
+                        >
+                          <User className="h-3 w-3" />
+                          You
                         </Badge>
                       )}
                       {conv.unread_count > 0 && (
@@ -340,18 +374,42 @@ export function OmniInbox({ shopId }: Props) {
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm truncate">{activeConv.customer_name ?? "Unknown"}</p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-xs text-muted-foreground capitalize">{activeConv.platform}</p>
-                {isAiEnabled ? (
-                  <Badge
-                    variant="default"
-                    className="bg-primary/10 text-primary border-primary/20"
-                  >
-                    AI Handling
+                {!channelAiOn ? (
+                  <Badge variant="secondary" className="text-[10px] font-normal">
+                    Channel AI off
                   </Badge>
-                ) : null}
+                ) : aiAutoReplies ? (
+                  <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">
+                    <Bot className="h-3 w-3 mr-1" />
+                    AI auto-replies
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
+                    <User className="h-3 w-3 mr-1" />
+                    You&apos;re handling
+                  </Badge>
+                )}
               </div>
             </div>
+            {channelAiOn ? (
+              <div className="flex items-center gap-2 shrink-0 mr-1">
+                <Switch
+                  id={`ai-toggle-${activeConv.id}`}
+                  checked={activeConv.ai_active}
+                  disabled={aiToggleBusy}
+                  onCheckedChange={handleConversationAiToggle}
+                  aria-label="Let AI handle this conversation"
+                />
+                <Label
+                  htmlFor={`ai-toggle-${activeConv.id}`}
+                  className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap hidden sm:inline"
+                >
+                  AI replies
+                </Label>
+              </div>
+            ) : null}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8">

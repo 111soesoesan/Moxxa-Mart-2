@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateText, stepCountIs } from "ai";
+import type { ModelMessage } from "ai";
 import { createServiceClient } from "@/lib/supabase/server";
-import { buildSystemPrompt, createGeminiModel, buildAITools } from "@/lib/ai/chat-engine";
+import { runShopAgentGenerate } from "@/lib/ai/shop-agent";
 import type { Json } from "@/types/supabase";
 
 export async function GET(req: NextRequest) {
@@ -120,17 +120,19 @@ export async function POST(req: NextRequest) {
     // ── Get or create conversation ─────────────────────────────────────────────
     const { data: existingConv } = await supabase
       .from("messaging_conversations")
-      .select("id, status")
+      .select("id, status, ai_active")
       .eq("channel_id", channel.id)
       .eq("platform_conversation_id", session_id)
       .single();
 
     let conversationId: string;
     let conversationStatus: string = "open";
+    let conversationAiActive = true;
 
     if (existingConv) {
       conversationId = existingConv.id;
       conversationStatus = existingConv.status ?? "open";
+      conversationAiActive = existingConv.ai_active ?? true;
     } else {
       const { data: newConv, error: convErr } = await supabase
         .from("messaging_conversations")
@@ -142,13 +144,14 @@ export async function POST(req: NextRequest) {
           customer_name: sender_name || "Guest",
           status: "open",
         })
-        .select("id, status")
+        .select("id, status, ai_active")
         .single();
       if (convErr || !newConv) {
         return NextResponse.json({ error: "Failed to create conversation" }, { status: 500 });
       }
       conversationId = newConv.id;
       conversationStatus = newConv.status ?? "open";
+      conversationAiActive = newConv.ai_active ?? true;
     }
 
     // ── Process and save inbound message ──────────────────────────────────────
@@ -189,8 +192,16 @@ export async function POST(req: NextRequest) {
     });
 
     // ── AI auto-response ───────────────────────────────────────────────────────
-    // Only respond if: channel has AI enabled, and the shop has a persona config.
-    if (channel.ai_enabled && conversationStatus !== "archived") {
+    // Only respond if: channel has AI enabled, and the shop has an active persona.
+    // Channel "AI" toggle lives in Channel AI assignment (not the widget visibility switch).
+    // Per-conversation `ai_active`: vendor can pause AI for this thread from the inbox.
+    if (
+      !channel.ai_enabled ||
+      conversationStatus === "archived" ||
+      !conversationAiActive
+    ) {
+      // Intentionally quiet: channel AI off, thread archived, or vendor took over this conversation.
+    } else {
       try {
         const { data: persona } = await supabase
           .from("ai_personas")
@@ -198,7 +209,11 @@ export async function POST(req: NextRequest) {
           .eq("shop_id", shop.id)
           .maybeSingle();
 
-        if (persona) {
+        if (!persona) {
+          console.warn("[Webchat AI] Skipped: no ai_personas row for shop", { shopId: shop.id });
+        } else if (!persona.is_active) {
+          console.warn("[Webchat AI] Skipped: persona is inactive", { shopId: shop.id });
+        } else {
           // Fetch the last 30 messages (includes the just-saved inbound message)
           const { data: history } = await supabase
             .from("messaging_messages")
@@ -207,7 +222,7 @@ export async function POST(req: NextRequest) {
             .order("created_at", { ascending: true })
             .limit(30);
 
-          const aiMessages = (history ?? []).map((msg) => {
+          const mapped = (history ?? []).map((msg) => {
             const isUser = msg.direction === "inbound";
 
             if (isUser) {
@@ -229,54 +244,54 @@ export async function POST(req: NextRequest) {
               };
             }
 
-            // AI (assistant) messages in this app are plain text.
             return {
               role: "assistant" as const,
               content: msg.content as string,
             };
           });
 
-          const model = createGeminiModel();
-          const systemPrompt = buildSystemPrompt(shop.name, persona.description_template, persona.system_prompt);
-          const tools = buildAITools(supabase, shop);
+          // Gemini expects the conversation to start with a user message.
+          let aiMessages = mapped as ModelMessage[];
+          while (aiMessages.length > 0 && aiMessages[0].role !== "user") {
+            aiMessages = aiMessages.slice(1);
+          }
 
-          const result = await generateText({
-            model,
-            system: systemPrompt,
-            messages: aiMessages,
-            tools,
-            stopWhen: stepCountIs(5),
-          });
-
-          if (result.text) {
-            await supabase.from("messaging_messages").insert({
-              conversation_id: conversationId,
-              direction: "outbound",
-              sender_id: null,
-              sender_name: persona.name,
-              content: result.text,
-              content_type: "text",
-              metadata: { is_ai: true, persona_name: persona.name } as Json,
+          if (aiMessages.length === 0) {
+            console.warn("[Webchat AI] Skipped: no user messages in history", { conversationId });
+          } else {
+            const result = await runShopAgentGenerate({
+              supabase,
+              shop,
+              persona,
+              messages: aiMessages,
+              sessionId: session_id,
             });
 
-            // Log token usage
-            try {
-              await supabase.from("ai_conversation_logs").insert({
-                shop_id: shop.id,
-                persona_id: persona.id,
-                session_id: session_id,
-                messages_count: 1,
-                tokens_input: result.usage?.inputTokens ?? 0,
-                tokens_output: result.usage?.outputTokens ?? 0,
+            const reply = result.text?.trim();
+            if (reply) {
+              await supabase.from("messaging_messages").insert({
+                conversation_id: conversationId,
+                direction: "outbound",
+                sender_id: null,
+                sender_name: persona.name,
+                content: reply,
+                content_type: "text",
+                metadata: { is_ai: true, persona_name: persona.name } as Json,
               });
-            } catch {
-              // Non-critical
+              console.info("[Webchat AI] Outbound AI message saved", {
+                conversationId,
+                chars: reply.length,
+              });
+            } else {
+              console.warn("[Webchat AI] No reply text after generation", {
+                conversationId,
+                finishReason: result.finishReason,
+              });
             }
           }
         }
       } catch (aiErr) {
         console.error("[Webchat AI] Error generating response:", aiErr);
-        // Non-critical — don't fail the request if AI errors
       }
     }
 

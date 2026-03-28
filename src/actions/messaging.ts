@@ -496,10 +496,11 @@ export async function setConversationAIActive(
 
   if (!shop || shop.owner_id !== user.id) return { error: "Unauthorized" };
 
-  await (supabase as any)
+  const { error } = await supabase
     .from("messaging_conversations")
     .update({ ai_active: aiActive, updated_at: new Date().toISOString() })
     .eq("id", conversationId);
 
+  if (error) return { error: error.message };
   return {};
 }

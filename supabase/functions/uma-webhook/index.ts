@@ -623,12 +623,13 @@ async function maybeSendAIReply({
 
   const { data: conversation } = await supabase
     .from("messaging_conversations")
-    .select("platform_conversation_id, status")
+    .select("platform_conversation_id, status, ai_active")
     .eq("id", conversationId)
     .maybeSingle();
 
   if (!conversation) return;
   if (conversation.status === "archived") return;
+  if (conversation.ai_active === false) return;
 
   const { data: shop } = await supabase
     .from("shops")
