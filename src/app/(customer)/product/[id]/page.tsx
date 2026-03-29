@@ -24,6 +24,7 @@ import { effectiveVariationUnitPrice } from "@/lib/product-pricing";
 import { ShoppingCart, Store, AlertCircle, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProductRatingSection } from "@/components/ratings/ProductRatingSection";
 
 type Product = NonNullable<Awaited<ReturnType<typeof getProductById>>>;
 
@@ -163,6 +164,8 @@ export default function ProductPage() {
       addItem({
         product_id: product.id,
         shop_id: product.shop_id,
+        shop_name: shop.name,
+        shop_slug: shop.slug,
         name: product.name,
         price: effectiveVariationUnitPrice(resolvedVariation),
         quantity,
@@ -174,6 +177,8 @@ export default function ProductPage() {
       addItem({
         product_id: product.id,
         shop_id: product.shop_id,
+        shop_name: shop.name,
+        shop_slug: shop.slug,
         name: product.name,
         price: product.price,
         quantity,
@@ -256,6 +261,13 @@ export default function ProductPage() {
               {product.category && <Badge variant="outline">{product.category}</Badge>}
             </div>
           </div>
+
+          <ProductRatingSection
+            productId={product.id}
+            ratingAvg={product.rating_avg}
+            ratingCount={product.rating_count}
+            signInNextPath={`/product/${product.id}`}
+          />
 
           <p className="text-3xl font-bold text-primary">
             {isVariable && !resolvedVariation && minFrom != null && minFrom > 0 ? (

@@ -186,6 +186,14 @@ export type CreateOrderPayload = {
   payment_method_id: string;
   shipping_fee?: number;
   notes?: string;
+  /** Set when this order is part of a multi-shop marketplace checkout */
+  checkout_group_id?: string | null;
+};
+
+export type CheckoutShopBundle = {
+  shop_id: string;
+  payment_method_id: string;
+  items: CartItem[];
 };
 
 export async function createOrder(payload: CreateOrderPayload) {
@@ -214,6 +222,7 @@ export async function createOrder(payload: CreateOrderPayload) {
     phone: payload.customer.phone || undefined,
     platform: payload.customer.platform || "web",
     platformId: payload.customer.platformId || undefined,
+    userId: user?.id ?? null,
   });
 
   if (customerResult.error) return { error: customerResult.error };
@@ -240,6 +249,7 @@ export async function createOrder(payload: CreateOrderPayload) {
       payment_method_id: payload.payment_method_id,
       status: "pending",
       payment_status: "unpaid",
+      ...(payload.checkout_group_id ? { checkout_group_id: payload.checkout_group_id } : {}),
     })
     .select()
     .single();
@@ -718,6 +728,84 @@ export async function validateCart(items: CartItem[]): Promise<CartValidationRes
   }
 
   return { valid: issues.length === 0, issues };
+}
+
+/** Release reservations and delete a pending order (service role; rollback helper). */
+async function serviceRollbackPendingOrder(svc: ServiceClient, orderId: string) {
+  const { data: order } = await svc
+    .from("orders")
+    .select("status, items_snapshot")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (!order || order.status !== "pending") return;
+  const snap = (order.items_snapshot ?? []) as SnapshotRestoreItem[];
+  await releasePendingReservationsForSnapshot(svc, snap);
+  await svc.from("orders").delete().eq("id", orderId);
+}
+
+/**
+ * One marketplace checkout → multiple order rows (one per shop), same checkout_group_id.
+ * Rolls back already-created orders if any step fails.
+ */
+export async function placeMultiShopOrders(payload: {
+  customer: GuestInfo;
+  notes?: string;
+  shops: CheckoutShopBundle[];
+}): Promise<
+  | { data: { order_ids: string[]; checkout_group_id: string } }
+  | { error: string; validation?: CartValidationResult }
+> {
+  if (!payload.shops.length) return { error: "Your cart has no shops to checkout." };
+
+  const allItems = payload.shops.flatMap((s) => s.items);
+  const validation = await validateCart(allItems);
+  if (!validation.valid) return { error: "validation_failed", validation };
+
+  for (const line of payload.shops) {
+    if (!line.items.length) return { error: "Each seller must have at least one item in the cart." };
+    for (const it of line.items) {
+      if (it.shop_id !== line.shop_id) {
+        return { error: "Cart data is inconsistent. Please refresh and try again." };
+      }
+    }
+  }
+
+  const svc = await createServiceClient();
+  for (const line of payload.shops) {
+    const { data: pm } = await svc
+      .from("payment_methods")
+      .select("id, shop_id, is_active")
+      .eq("id", line.payment_method_id)
+      .maybeSingle();
+    if (!pm?.is_active || pm.shop_id !== line.shop_id) {
+      return { error: "Invalid or inactive payment method for one of the sellers." };
+    }
+  }
+
+  const checkout_group_id = crypto.randomUUID();
+  const createdIds: string[] = [];
+
+  for (const line of payload.shops) {
+    const result = await createOrder({
+      shop_id: line.shop_id,
+      items: line.items,
+      customer: payload.customer,
+      payment_method_id: line.payment_method_id,
+      notes: payload.notes,
+      checkout_group_id,
+    });
+
+    if (result.error || !result.data) {
+      for (const id of createdIds) {
+        await serviceRollbackPendingOrder(svc, id);
+      }
+      return { error: typeof result.error === "string" ? result.error : "Failed to place order." };
+    }
+    createdIds.push(result.data.id);
+  }
+
+  revalidatePath("/orders");
+  return { data: { order_ids: createdIds, checkout_group_id } };
 }
 
 export async function updateOrderPaymentStatus(orderId: string, paymentStatus: string) {

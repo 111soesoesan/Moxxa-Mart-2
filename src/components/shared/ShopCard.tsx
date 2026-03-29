@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { StarSummary } from "@/components/ratings/StarRating";
 
 type Shop = {
   id: string;
@@ -11,6 +12,8 @@ type Shop = {
   logo_url?: string | null;
   cover_url?: string | null;
   location?: string | null;
+  rating_avg?: number | null;
+  rating_count?: number | null;
 };
 
 export function ShopCard({ shop }: { shop: Shop }) {
@@ -28,6 +31,7 @@ export function ShopCard({ shop }: { shop: Shop }) {
             <AvatarFallback>{shop.name[0]}</AvatarFallback>
           </Avatar>
           <p className="font-semibold mt-2 group-hover:text-primary transition-colors">{shop.name}</p>
+          <StarSummary avg={shop.rating_avg ?? null} count={shop.rating_count ?? 0} className="text-xs mt-1" />
           {shop.description && (
             <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">{shop.description}</p>
           )}

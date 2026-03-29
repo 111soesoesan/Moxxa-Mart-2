@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { ModelMessage } from "ai";
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { runShopAgentGenerate } from "@/lib/ai/shop-agent";
 import {
   createRequestAiTracer,
@@ -8,6 +8,38 @@ import {
   webchatAiDiagnosticsInResponse,
 } from "@/lib/ai/ai-trace";
 import type { Json } from "@/types/supabase";
+
+/** Signed-in marketplace user: use profile for web chat display + vendor inbox avatars. */
+async function getAuthenticatedProfileHint(): Promise<{
+  full_name: string;
+  avatar_url: string | null;
+} | null> {
+  try {
+    const authClient = await createClient();
+    const { data: { user } } = await authClient.auth.getUser();
+    if (!user) return null;
+    const { data: profile } = await authClient
+      .from("profiles")
+      .select("full_name, avatar_url")
+      .eq("id", user.id)
+      .maybeSingle();
+    const metaName =
+      typeof user.user_metadata?.full_name === "string"
+        ? user.user_metadata.full_name.trim()
+        : "";
+    const name =
+      profile?.full_name?.trim() ||
+      metaName ||
+      user.email?.split("@")[0]?.trim() ||
+      "Customer";
+    return {
+      full_name: name,
+      avatar_url: profile?.avatar_url ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(req: NextRequest) {
   const shopSlug = req.nextUrl.searchParams.get("shop_slug");
@@ -33,18 +65,39 @@ export async function GET(req: NextRequest) {
 
     const shouldShowWidget = !!(channel?.is_active || channel?.ai_enabled);
     if (!shouldShowWidget || !channel) return NextResponse.json({ active: false });
-    if (!sessionId) return NextResponse.json({ active: shouldShowWidget });
+
+    const profileHint = await getAuthenticatedProfileHint();
+    if (!sessionId) {
+      return NextResponse.json({ active: shouldShowWidget, profile: profileHint });
+    }
 
     const { data: existingConvRows } = await supabase
       .from("messaging_conversations")
-      .select("id, customer_name")
+      .select("id, customer_name, customer_avatar")
       .eq("channel_id", channel.id)
       .eq("platform_conversation_id", sessionId)
       .limit(1);
 
     const existingConv = existingConvRows?.[0] ?? null;
     if (!existingConv) {
-      return NextResponse.json({ active: true, conversation_id: null, customer_name: null, history: [] });
+      return NextResponse.json({
+        active: true,
+        conversation_id: null,
+        customer_name: null,
+        customer_avatar: null,
+        profile: profileHint,
+        history: [],
+      });
+    }
+
+    if (profileHint) {
+      await supabase
+        .from("messaging_conversations")
+        .update({
+          customer_name: profileHint.full_name,
+          customer_avatar: profileHint.avatar_url,
+        })
+        .eq("id", existingConv.id);
     }
 
     const conversationId = existingConv.id;
@@ -56,7 +109,16 @@ export async function GET(req: NextRequest) {
       .limit(20);
 
     const history = (historyRows ?? []).reverse();
-    return NextResponse.json({ active: true, conversation_id: conversationId, customer_name: existingConv.customer_name, history });
+    const customerName = profileHint?.full_name ?? existingConv.customer_name;
+    const customerAvatar = profileHint?.avatar_url ?? existingConv.customer_avatar;
+    return NextResponse.json({
+      active: true,
+      conversation_id: conversationId,
+      customer_name: customerName,
+      customer_avatar: customerAvatar,
+      profile: profileHint,
+      history,
+    });
   } catch {
     return NextResponse.json({ active: false });
   }
@@ -134,6 +196,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const profileHint = await getAuthenticatedProfileHint();
+    const displayName =
+      profileHint?.full_name ?? (sender_name.trim() || "Guest");
+    const displayAvatar = profileHint?.avatar_url ?? null;
+
     const { data: shop } = await supabase
       .from("shops")
       .select("id, name")
@@ -192,7 +259,8 @@ export async function POST(req: NextRequest) {
           channel_id: channel.id,
           platform: "webchat",
           platform_conversation_id: session_id,
-          customer_name: sender_name || "Guest",
+          customer_name: displayName,
+          customer_avatar: displayAvatar,
           status: "open",
         })
         .select("id, status, ai_active")
@@ -211,6 +279,14 @@ export async function POST(req: NextRequest) {
       conversationStatus = newConv.status ?? "open";
       conversationAiActive = newConv.ai_active ?? true;
     }
+
+    await supabase
+      .from("messaging_conversations")
+      .update({
+        customer_name: displayName,
+        customer_avatar: displayAvatar,
+      })
+      .eq("id", conversationId);
 
     // ── Process and save inbound message ──────────────────────────────────────
     let finalContent     = messageContent;
@@ -243,7 +319,7 @@ export async function POST(req: NextRequest) {
       conversation_id: conversationId,
       direction: "inbound",
       sender_id: session_id,
-      sender_name: sender_name || "Guest",
+      sender_name: displayName,
       content: finalContent,
       content_type: finalContentType,
       metadata: (Object.keys(finalMetadata).length > 0 ? finalMetadata : null) as Json | null,

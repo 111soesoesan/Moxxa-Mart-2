@@ -2,15 +2,13 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { getMyShops } from "@/actions/shops";
 import { getShopProductsWithDetails } from "@/actions/products";
+import { getActiveBrowseCategories } from "@/actions/browseCategories";
 import ProductsTable from "@/components/vendor/products/ProductsTable";
 
-export default async function AllProductsPage({ params }: { params: { shopSlug: string } }) {
+export default async function AllProductsPage({ params }: { params: Promise<{ shopSlug: string }> }) {
   const shops = await getMyShops();
   const { shopSlug } = await params;
   const shop = shops.find((s) => s.slug === shopSlug);
-  console.log("params: ",shopSlug)
-  console.log("shops: ",shops)
-  console.log("shop: ",shop)
 
   if (shop == null) {
     return (
@@ -23,7 +21,16 @@ export default async function AllProductsPage({ params }: { params: { shopSlug: 
     );
   }
 
-  const products = (await getShopProductsWithDetails(shop.id)) ?? [];
+  const [products, browseCategories] = await Promise.all([
+    getShopProductsWithDetails(shop.id),
+    getActiveBrowseCategories(),
+  ]);
 
-  return <ProductsTable shopSlug={shopSlug} initialProducts={products as any} />;
+  return (
+    <ProductsTable
+      shopSlug={shopSlug}
+      initialProducts={(products ?? []) as never}
+      browseCategories={browseCategories.map((b) => ({ id: b.id, name: b.name }))}
+    />
+  );
 }

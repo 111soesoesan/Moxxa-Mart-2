@@ -67,7 +67,7 @@ Customer identity resolution works across all channels without requiring a login
 - `trg_adjust_customer_stats_on_order_cancel` — decrements stats and logs when an order is cancelled or refunded.
 
 ### UI
-- `/orders/lookup` — public phone-based order tracking page (no login required)
+- `/orders` — account orders (when signed in) + guest order lookup by phone
 - Vendor customers list — Channel badges + phone search
 - Vendor customer detail — Connected Channels card + Order History card + Activity Timeline
 

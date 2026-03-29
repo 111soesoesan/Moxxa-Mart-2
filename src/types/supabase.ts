@@ -337,6 +337,39 @@ export type Database = {
           },
         ]
       }
+      browse_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           created_at: string
@@ -802,6 +835,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          checkout_group_id: string | null
           created_at: string
           customer_id: string | null
           customer_snapshot: Json
@@ -824,6 +858,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          checkout_group_id?: string | null
           created_at?: string
           customer_id?: string | null
           customer_snapshot?: Json
@@ -846,6 +881,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          checkout_group_id?: string | null
           created_at?: string
           customer_id?: string | null
           customer_snapshot?: Json
@@ -981,6 +1017,48 @@ export type Database = {
           },
         ]
       }
+      product_ratings: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string
+          stars: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_id: string
+          stars: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_id?: string
+          stars?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_ratings_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_ratings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_variations: {
         Row: {
           attribute_combination: Json
@@ -1037,6 +1115,7 @@ export type Database = {
       products: {
         Row: {
           attributes: Json
+          browse_category_id: string | null
           category: string | null
           condition: string
           created_at: string
@@ -1051,6 +1130,8 @@ export type Database = {
           payment_method_ids: string[]
           price: number
           product_type: string
+          rating_avg: number | null
+          rating_count: number
           sale_end: string | null
           sale_price: number | null
           sale_start: string | null
@@ -1065,6 +1146,7 @@ export type Database = {
         }
         Insert: {
           attributes?: Json
+          browse_category_id?: string | null
           category?: string | null
           condition?: string
           created_at?: string
@@ -1079,6 +1161,8 @@ export type Database = {
           payment_method_ids?: string[]
           price: number
           product_type?: string
+          rating_avg?: number | null
+          rating_count?: number
           sale_end?: string | null
           sale_price?: number | null
           sale_start?: string | null
@@ -1093,6 +1177,7 @@ export type Database = {
         }
         Update: {
           attributes?: Json
+          browse_category_id?: string | null
           category?: string | null
           condition?: string
           created_at?: string
@@ -1107,6 +1192,8 @@ export type Database = {
           payment_method_ids?: string[]
           price?: number
           product_type?: string
+          rating_avg?: number | null
+          rating_count?: number
           sale_end?: string | null
           sale_price?: number | null
           sale_start?: string | null
@@ -1121,6 +1208,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "products_browse_category_id_fkey"
+            columns: ["browse_category_id"]
+            isOneToOne: false
+            referencedRelation: "browse_categories"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "products_shop_id_fkey"
             columns: ["shop_id"]
             isOneToOne: false
@@ -1133,24 +1227,30 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          default_address: string | null
           full_name: string | null
           id: string
+          phone: string | null
           role: string
           updated_at: string
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          default_address?: string | null
           full_name?: string | null
           id: string
+          phone?: string | null
           role?: string
           updated_at?: string
         }
         Update: {
           avatar_url?: string | null
           created_at?: string
+          default_address?: string | null
           full_name?: string | null
           id?: string
+          phone?: string | null
           role?: string
           updated_at?: string
         }
@@ -1210,10 +1310,53 @@ export type Database = {
           },
         ]
       }
+      shop_ratings: {
+        Row: {
+          created_at: string
+          id: string
+          shop_id: string
+          stars: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          shop_id: string
+          stars: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          shop_id?: string
+          stars?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_ratings_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_ratings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shops: {
         Row: {
           allow_guest_purchase: boolean
           banner_image_url: string | null
+          browse_category_id: string | null
           cover_url: string | null
           created_at: string
           delivery_policy: string | null
@@ -1232,6 +1375,8 @@ export type Database = {
           promotion_button_text: string | null
           promotion_enabled: boolean
           promotion_title: string | null
+          rating_avg: number | null
+          rating_count: number
           rejection_reason: string | null
           shop_bio: string | null
           slug: string
@@ -1242,6 +1387,7 @@ export type Database = {
         Insert: {
           allow_guest_purchase?: boolean
           banner_image_url?: string | null
+          browse_category_id?: string | null
           cover_url?: string | null
           created_at?: string
           delivery_policy?: string | null
@@ -1260,6 +1406,8 @@ export type Database = {
           promotion_button_text?: string | null
           promotion_enabled?: boolean
           promotion_title?: string | null
+          rating_avg?: number | null
+          rating_count?: number
           rejection_reason?: string | null
           shop_bio?: string | null
           slug: string
@@ -1270,6 +1418,7 @@ export type Database = {
         Update: {
           allow_guest_purchase?: boolean
           banner_image_url?: string | null
+          browse_category_id?: string | null
           cover_url?: string | null
           created_at?: string
           delivery_policy?: string | null
@@ -1288,6 +1437,8 @@ export type Database = {
           promotion_button_text?: string | null
           promotion_enabled?: boolean
           promotion_title?: string | null
+          rating_avg?: number | null
+          rating_count?: number
           rejection_reason?: string | null
           shop_bio?: string | null
           slug?: string
@@ -1296,6 +1447,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "shops_browse_category_id_fkey"
+            columns: ["browse_category_id"]
+            isOneToOne: false
+            referencedRelation: "browse_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "shops_owner_id_fkey"
             columns: ["owner_id"]

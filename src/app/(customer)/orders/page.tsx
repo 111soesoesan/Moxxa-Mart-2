@@ -2,104 +2,190 @@
 
 import { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 import { getMyOrders, getOrdersByPhone } from "@/actions/orders";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/shared/StatusBadge";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
-import { PackageSearch } from "lucide-react";
+import { OrderListCard, type OrderListItem } from "@/components/customer/OrderListCard";
+import { PackageSearch, Phone } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-
-type Order = Awaited<ReturnType<typeof getMyOrders>>[number];
-
-function OrderRow({ order }: { order: Order }) {
-  const shop = order.shops as { name: string; slug: string } | null;
-  const snapshot = order.items_snapshot as Array<{ name: string; quantity: number; price: number }>;
-  return (
-    <Link href={`/orders/${order.id}`}>
-      <Card className="hover:shadow-md transition-shadow">
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <StatusBadge type="order" value={order.status} />
-                <StatusBadge type="payment" value={order.payment_status} />
-              </div>
-              <p className="text-sm font-medium">{shop?.name ?? "Shop"}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {snapshot.length} item{snapshot.length > 1 ? "s" : ""} •{" "}
-                {snapshot.map((i) => `${i.name} x${i.quantity}`).join(", ").slice(0, 60)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">{formatDateTime(order.created_at)}</p>
-            </div>
-            <div className="text-right shrink-0">
-              <p className="font-semibold text-primary">{formatCurrency(order.total)}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
-  );
-}
+import { Separator } from "@/components/ui/separator";
 
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [accountOrders, setAccountOrders] = useState<OrderListItem[]>([]);
+  const [accountLoading, setAccountLoading] = useState(true);
+
   const [guestPhone, setGuestPhone] = useState("");
+  const [phoneResults, setPhoneResults] = useState<OrderListItem[] | null>(null);
+  const [phoneSearched, setPhoneSearched] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [searched, setSearched] = useState(false);
 
   useEffect(() => {
-    getMyOrders().then((data) => {
-      setOrders(data as Order[]);
-      setLoading(false);
+    const supabase = createClient();
+    let cancelled = false;
+
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (cancelled) return;
+      setLoggedIn(!!user);
+      setSessionReady(true);
+
+      if (user) {
+        const data = await getMyOrders();
+        if (!cancelled) setAccountOrders(data as OrderListItem[]);
+      }
+      if (!cancelled) setAccountLoading(false);
+    })();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setLoggedIn(!!session?.user);
+      if (session?.user) {
+        setAccountLoading(true);
+        getMyOrders().then((data) => {
+          setAccountOrders(data as OrderListItem[]);
+          setAccountLoading(false);
+        });
+      } else {
+        setAccountOrders([]);
+        setAccountLoading(false);
+      }
     });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const searchByPhone = () => {
-    if (!guestPhone.trim()) return;
+    const cleaned = guestPhone.trim();
+    if (!cleaned) return;
     startTransition(async () => {
-      const data = await getOrdersByPhone(guestPhone.trim());
-      setOrders(data as Order[]);
-      setSearched(true);
+      const data = await getOrdersByPhone(cleaned);
+      setPhoneResults(data as OrderListItem[]);
+      setPhoneSearched(true);
     });
+  };
+
+  const onPhoneKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") searchByPhone();
   };
 
   return (
     <div className="container mx-auto px-4 py-10 max-w-2xl">
-      <h1 className="text-2xl font-bold mb-6">My Orders</h1>
+      <h1 className="text-2xl font-bold mb-1">Orders</h1>
+      <p className="text-sm text-muted-foreground mb-8">
+        {loggedIn
+          ? "Your account orders and guest checkout lookup in one place."
+          : "Sign in to see orders on your account, or find guest orders by phone."}
+      </p>
 
-      {loading ? (
+      {!sessionReady || (loggedIn && accountLoading) ? (
         <div className="space-y-3">
-          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
-        </div>
-      ) : orders.length > 0 ? (
-        <div className="space-y-3">
-          {orders.map((o) => <OrderRow key={o.id} order={o} />)}
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-xl" />
+          ))}
         </div>
       ) : (
-        <div className="space-y-6">
-          <div className="text-center py-10 text-muted-foreground">
-            <PackageSearch className="h-10 w-10 mx-auto mb-3" />
-            <p>No orders found on your account.</p>
-          </div>
-          <div className="border rounded-xl p-6 space-y-3">
-            <p className="font-medium">Checked out as guest?</p>
-            <p className="text-sm text-muted-foreground">Find your order using the phone number you provided.</p>
-            <div className="flex gap-2">
-              <Input
-                value={guestPhone}
-                onChange={(e) => setGuestPhone(e.target.value)}
-                placeholder="09XX XXX XXXX"
-                type="tel"
-              />
-              <Button onClick={searchByPhone} disabled={isPending}>Find</Button>
+        <div className="space-y-10">
+          {loggedIn && (
+            <section className="space-y-3">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Your account
+              </h2>
+              {accountOrders.length > 0 ? (
+                <div className="space-y-3">
+                  {accountOrders.map((o) => (
+                    <OrderListCard key={o.id} order={o} />
+                  ))}
+                </div>
+              ) : (
+                <Card className="border-dashed">
+                  <CardContent className="p-6 text-center text-muted-foreground text-sm">
+                    <p>No orders on this account yet.</p>
+                    <Button variant="link" className="mt-1 h-auto p-0" asChild>
+                      <Link href="/search">Browse products</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </section>
+          )}
+
+          {loggedIn && <Separator />}
+
+          <section className="space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                <PackageSearch className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold">Find order by phone</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Used guest checkout? Enter the phone number from your order — this does not affect your
+                  account list above.
+                </p>
+              </div>
             </div>
-            {searched && orders.length === 0 && (
-              <p className="text-sm text-muted-foreground">No orders found for that phone number.</p>
+
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={guestPhone}
+                  onChange={(e) => setGuestPhone(e.target.value)}
+                  onKeyDown={onPhoneKeyDown}
+                  placeholder="e.g. 09123456789"
+                  type="tel"
+                  className="pl-9"
+                  autoComplete="tel"
+                />
+              </div>
+              <Button onClick={searchByPhone} disabled={isPending || !guestPhone.trim()}>
+                {isPending ? "Searching…" : "Find"}
+              </Button>
+            </div>
+
+            {phoneSearched && phoneResults !== null && (
+              <div className="space-y-3 pt-2">
+                {phoneResults.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No orders found for <span className="font-mono text-foreground">{guestPhone.trim()}</span>.
+                    Double-check the number you used at checkout.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      Found{" "}
+                      <span className="font-semibold text-foreground">{phoneResults.length}</span> order
+                      {phoneResults.length > 1 ? "s" : ""} for{" "}
+                      <span className="font-mono text-foreground">{guestPhone.trim()}</span>
+                    </p>
+                    {phoneResults.map((o) => (
+                      <OrderListCard key={o.id} order={o} />
+                    ))}
+                  </>
+                )}
+              </div>
             )}
-          </div>
+          </section>
+
+          {!loggedIn && (
+            <p className="text-center text-sm text-muted-foreground">
+              Have an account?{" "}
+              <Link href="/login" className="text-primary underline underline-offset-2">
+                Sign in
+              </Link>{" "}
+              to see all orders linked to your profile.
+            </p>
+          )}
         </div>
       )}
     </div>

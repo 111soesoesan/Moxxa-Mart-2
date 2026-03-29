@@ -16,12 +16,23 @@ import {
   type VisibilityState,
   type RowSelectionState,
 } from "@tanstack/react-table";
-import { bulkDeleteProducts, bulkUpdateProductStatus } from "@/actions/products";
+import {
+  bulkDeleteProducts,
+  bulkUpdateProductBrowseCategory,
+  bulkUpdateProductStatus,
+} from "@/actions/products";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -39,6 +50,8 @@ export type ProductRow = {
   main_image: string | null;
   image_urls: string[];
   created_at: string;
+  browse_category_id?: string | null;
+  browse_categories?: { id: string; name: string; slug: string } | null;
   product_variations: Array<{ id: string; is_active: boolean; stock_quantity: number; price: number | null }>;
 };
 
@@ -73,7 +86,15 @@ const STATUS_CFG: Record<string, { label: string; color: string }> = {
   archived: { label: "Archived", color: "bg-orange-100 text-orange-700" },
 };
 
-export default function ProductsTable({ shopSlug, initialProducts }: { shopSlug: string; initialProducts: ProductRow[] }) {
+export default function ProductsTable({
+  shopSlug,
+  initialProducts,
+  browseCategories,
+}: {
+  shopSlug: string;
+  initialProducts: ProductRow[];
+  browseCategories: { id: string; name: string }[];
+}) {
   const router = useRouter();
   const [products, setProducts] = useState<ProductRow[]>(initialProducts);
   const [isPending, startTransition] = useTransition();
@@ -135,6 +156,18 @@ export default function ProductsTable({ shopSlug, initialProducts }: { shopSlug:
               <p className="text-xs text-muted-foreground capitalize">{p.product_type}</p>
             </div>
           </div>
+        );
+      },
+    },
+    {
+      id: "browse_category",
+      header: "Browse",
+      cell: ({ row }) => {
+        const rel = row.original.browse_categories;
+        return (
+          <span className="text-sm text-muted-foreground max-w-[120px] truncate block">
+            {rel?.name ?? "—"}
+          </span>
         );
       },
     },
@@ -275,6 +308,47 @@ export default function ProductsTable({ shopSlug, initialProducts }: { shopSlug:
               {(["active", "draft", "archived"] as const).map((s) => (
                 <DropdownMenuItem key={s} onClick={() => startTransition(async () => { const r = await bulkUpdateProductStatus(selectedIds, s); if (r.error) toast.error(r.error); else { toast.success("Updated to " + s); setRowSelection({}); } router.refresh(); })}>
                   Set {s.charAt(0).toUpperCase() + s.slice(1)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">Browse category</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="max-h-64 overflow-y-auto">
+              <DropdownMenuItem
+                onClick={() =>
+                  startTransition(async () => {
+                    const r = await bulkUpdateProductBrowseCategory(selectedIds, null);
+                    if (r.error) toast.error(r.error);
+                    else {
+                      toast.success("Browse category cleared");
+                      setRowSelection({});
+                    }
+                    router.refresh();
+                  })
+                }
+              >
+                None
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {browseCategories.map((c) => (
+                <DropdownMenuItem
+                  key={c.id}
+                  onClick={() =>
+                    startTransition(async () => {
+                      const r = await bulkUpdateProductBrowseCategory(selectedIds, c.id);
+                      if (r.error) toast.error(r.error);
+                      else {
+                        toast.success("Browse category updated");
+                        setRowSelection({});
+                      }
+                      router.refresh();
+                    })
+                  }
+                >
+                  {c.name}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>

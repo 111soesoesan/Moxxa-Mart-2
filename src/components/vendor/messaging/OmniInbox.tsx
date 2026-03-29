@@ -17,7 +17,7 @@ import { uploadChatImage } from "@/lib/supabase/storage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   DropdownMenu,
@@ -315,6 +315,7 @@ export function OmniInbox({ shopId }: Props) {
                   )}
                 >
                   <Avatar className="h-9 w-9 shrink-0 mt-0.5">
+                    <AvatarImage src={conv.customer_avatar ?? undefined} alt="" />
                     <AvatarFallback className="text-xs font-semibold">
                       {(conv.customer_name ?? "?")[0].toUpperCase()}
                     </AvatarFallback>
@@ -368,6 +369,7 @@ export function OmniInbox({ shopId }: Props) {
           {/* Header */}
           <div className="flex items-center gap-3 px-4 py-3 border-b bg-background/95">
             <Avatar className="h-8 w-8">
+              <AvatarImage src={activeConv.customer_avatar ?? undefined} alt="" />
               <AvatarFallback className="text-xs font-semibold">
                 {(activeConv.customer_name ?? "?")[0].toUpperCase()}
               </AvatarFallback>

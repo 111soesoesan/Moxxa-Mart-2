@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useTransition, useRef, useState } from "react";
+import { getActiveBrowseCategories } from "@/actions/browseCategories";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -30,6 +31,7 @@ const generalSchema = z.object({
   location: z.string().optional(),
   delivery_policy: z.string().optional(),
   shop_bio: z.string().max(200, "Shop bio must be 200 characters or fewer").optional(),
+  browse_category_id: z.union([z.literal(""), z.string().uuid()]).optional(),
 });
 
 const promotionsSchema = z.object({
@@ -135,6 +137,7 @@ function GeneralTab({
   onSaved: (updated: Shop) => void;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [browseCategories, setBrowseCategories] = useState<{ id: string; name: string }[]>([]);
 
   const form = useForm<GeneralSchema>({
     resolver: zodResolver(generalSchema),
@@ -145,8 +148,15 @@ function GeneralTab({
       location: shop.location ?? "",
       delivery_policy: shop.delivery_policy ?? "",
       shop_bio: shop.shop_bio ?? "",
+      browse_category_id: shop.browse_category_id ?? "",
     },
   });
+
+  useEffect(() => {
+    getActiveBrowseCategories().then((rows) =>
+      setBrowseCategories(rows.map((r) => ({ id: r.id, name: r.name })))
+    );
+  }, []);
 
   const errors = form.formState.errors;
   const bioValue = form.watch("shop_bio") ?? "";
@@ -160,6 +170,7 @@ function GeneralTab({
         location: values.location,
         delivery_policy: values.delivery_policy,
         shop_bio: values.shop_bio,
+        browse_category_id: values.browse_category_id || null,
       });
       if (result.error) {
         form.setError("root", { message: result.error });
@@ -237,6 +248,25 @@ function GeneralTab({
             <FieldLabel>Delivery & Refund Policy</FieldLabel>
             <FieldControl>
               <Textarea rows={4} {...form.register("delivery_policy")} />
+            </FieldControl>
+            <FieldError />
+          </Field>
+
+          <Field error={errors.browse_category_id?.message}>
+            <FieldLabel>Browse category</FieldLabel>
+            <FieldDescription>Used for marketplace discovery (shop directory and filters).</FieldDescription>
+            <FieldControl>
+              <select
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                {...form.register("browse_category_id")}
+              >
+                <option value="">None</option>
+                {browseCategories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
             </FieldControl>
             <FieldError />
           </Field>

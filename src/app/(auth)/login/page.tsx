@@ -26,6 +26,7 @@ function LoginForm() {
   const [isPending, startTransition] = useTransition();
   const searchParams = useSearchParams();
   const authError = searchParams.get("error");
+  const nextPath = searchParams.get("next")?.trim() ?? "";
 
   const form = useForm<LoginSchema>({
     resolver: zodResolver(schema),
@@ -38,6 +39,9 @@ function LoginForm() {
     const fd = new FormData();
     fd.set("email", values.email);
     fd.set("password", values.password);
+    if (nextPath.startsWith("/") && !nextPath.startsWith("//")) {
+      fd.set("next", nextPath);
+    }
     startTransition(async () => {
       const result = await signIn(fd);
       if (result?.error) form.setError("root", { message: result.error });
@@ -95,7 +99,10 @@ function LoginForm() {
         </CardContent>
         <CardFooter className="justify-center text-sm text-muted-foreground">
           Don&apos;t have an account?{" "}
-          <Link href="/signup" className="text-primary font-medium ml-1 hover:underline">
+          <Link
+            href={nextPath ? `/signup?next=${encodeURIComponent(nextPath)}` : "/signup"}
+            className="text-primary font-medium ml-1 hover:underline"
+          >
             Sign up
           </Link>
         </CardFooter>

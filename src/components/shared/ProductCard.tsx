@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
+import { StarSummary } from "@/components/ratings/StarRating";
 import { type CatalogProductBase } from "@/lib/product-pricing";
 import { StatusBadge } from "./StatusBadge";
 import { formatCurrency } from "@/lib/utils";
@@ -8,6 +9,8 @@ import { formatCurrency } from "@/lib/utils";
 type Product = CatalogProductBase & {
   display_price: number;
   display_in_stock: boolean;
+  rating_avg?: number | null;
+  rating_count?: number | null;
   shops?: { name: string; slug: string } | null;
 };
 
@@ -41,6 +44,7 @@ export function ProductCard({ product }: { product: Product }) {
         </div>
         <CardContent className="p-3 space-y-1.5">
           <p className="font-semibold text-sm line-clamp-2 leading-snug">{product.name}</p>
+          <StarSummary avg={product.rating_avg ?? null} count={product.rating_count ?? 0} className="text-xs" />
           <p className="text-lg font-bold text-primary">
             {isVariable && listPrice > 0 ? (
               <>From {formatCurrency(listPrice)}</>

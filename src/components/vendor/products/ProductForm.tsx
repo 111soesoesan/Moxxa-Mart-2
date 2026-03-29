@@ -8,6 +8,7 @@ import { getShopCategories, setProductCategories, getProductCategories, type Cat
 import { getShopAttributes, type Attribute } from "@/actions/attributes";
 import { getProductVariations, upsertVariations, deleteVariationsByProduct } from "@/actions/variations";
 import { getShopProducts } from "@/actions/products";
+import { getActiveBrowseCategories } from "@/actions/browseCategories";
 import { getShopPaymentMethods } from "@/actions/paymentMethods";
 import { uploadProductImage } from "@/lib/supabase/storage";
 import { slugify } from "@/lib/utils";
@@ -108,11 +109,13 @@ export function ProductForm({ mode, productId, shopId, shopSlug }: Props) {
   const [condition, setCondition] = useState("new");
   const [listOnMarketplace, setListOnMarketplace] = useState(true);
   const [paymentMethodIds, setPaymentMethodIds] = useState<string[]>([]);
+  const [browseCategoryId, setBrowseCategoryId] = useState("");
 
   // ── Data ──
   const [categories, setCategories] = useState<Category[]>([]);
   const [attributes, setAttributes] = useState<Attribute[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [browseCategories, setBrowseCategories] = useState<{ id: string; name: string }[]>([]);
 
   // ── Variable product ──
   const [selectedAttributes, setSelectedAttributes] = useState<SelectedAttribute[]>([]);
@@ -130,13 +133,15 @@ export function ProductForm({ mode, productId, shopId, shopSlug }: Props) {
   const [tempId] = useState(() => productId ?? crypto.randomUUID());
 
   const loadData = useCallback(async () => {
-    const [cats, attrs, pms] = await Promise.all([
+    const [cats, attrs, pms, bcats] = await Promise.all([
       getShopCategories(shopId),
       getShopAttributes(shopId),
       getShopPaymentMethods(shopId),
+      getActiveBrowseCategories(),
     ]);
     setCategories(cats);
     setAttributes(attrs);
+    setBrowseCategories(bcats.map((b) => ({ id: b.id, name: b.name })));
     if (pms.data) {
       setPaymentMethods(pms.data);
       if (mode === "create") {
@@ -171,6 +176,9 @@ export function ProductForm({ mode, productId, shopId, shopSlug }: Props) {
         setListOnMarketplace(product.list_on_marketplace ?? true);
         setPaymentMethodIds((product.payment_method_ids as string[]) ?? []);
         setSelectedCategoryIds(catIds);
+        setBrowseCategoryId(
+          (product as { browse_category_id?: string | null }).browse_category_id ?? ""
+        );
       }
       if (vars.length > 0) {
         setVariations(vars.map((v) => ({
@@ -335,6 +343,7 @@ export function ProductForm({ mode, productId, shopId, shopSlug }: Props) {
         condition,
         list_on_marketplace: listOnMarketplace,
         payment_method_ids: paymentMethodIds,
+        browse_category_id: browseCategoryId || null,
       };
 
       let pid = productId;
@@ -808,6 +817,27 @@ export function ProductForm({ mode, productId, shopId, shopSlug }: Props) {
 
         {/* Right sidebar */}
         <div className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Browse category</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Marketplace filter (separate from your shop categories).
+              </p>
+              <select
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                value={browseCategoryId}
+                onChange={(e) => setBrowseCategoryId(e.target.value)}
+              >
+                <option value="">None</option>
+                {browseCategories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </CardContent>
+          </Card>
+
           {/* Categories */}
           <Card>
             <CardHeader><CardTitle className="text-sm">Categories</CardTitle></CardHeader>

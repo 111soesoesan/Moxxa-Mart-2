@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ProductCard } from '@/components/shared/ProductCard';
+import { StarSummary } from '@/components/ratings/StarRating';
 import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
 
@@ -7,18 +8,25 @@ interface LatestProductsSectionProps {
   products: any[];
   shopName: string;
   shopSlug: string;
+  ratingAvg?: number | null;
+  ratingCount?: number | null;
 }
 
 export function LatestProductsSection({
   products,
   shopName,
   shopSlug,
+  ratingAvg,
+  ratingCount,
 }: LatestProductsSectionProps) {
   if (products.length === 0) {
     return (
       <section className="py-12">
         <div className="space-y-4 mb-8">
-          <h2 className="text-2xl font-bold">Latest Products</h2>
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <h2 className="text-2xl font-bold">Latest Products</h2>
+            <StarSummary avg={ratingAvg ?? null} count={ratingCount ?? 0} />
+          </div>
           <p className="text-muted-foreground">
             {shopName} hasn't listed any products yet. Check back soon!
           </p>
@@ -29,10 +37,13 @@ export function LatestProductsSection({
 
   return (
     <section className="py-12">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-bold">Latest Products</h2>
-          <p className="text-sm text-muted-foreground mt-1">
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <div className="space-y-2 min-w-0">
+          <div className="flex flex-wrap items-end gap-3">
+            <h2 className="text-2xl font-bold">Latest Products</h2>
+            <StarSummary avg={ratingAvg ?? null} count={ratingCount ?? 0} />
+          </div>
+          <p className="text-sm text-muted-foreground">
             Recently added items from {shopName}
           </p>
         </div>

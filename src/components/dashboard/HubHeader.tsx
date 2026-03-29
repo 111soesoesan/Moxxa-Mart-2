@@ -26,7 +26,7 @@ export function HubHeader({ profile }: { profile: Profile }) {
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto flex h-14 items-center justify-between gap-4 px-4">
-        <Link href="/" className="flex items-center gap-2 font-semibold text-sm">
+        <Link href="/explore" className="flex items-center gap-2 font-semibold text-sm">
           <Store className="h-5 w-5 text-primary" />
           Moxxa Mart
         </Link>

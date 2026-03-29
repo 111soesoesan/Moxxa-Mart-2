@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,13 +9,17 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Search } from "lucide-react";
 
+type ShopFiltersProps = {
+  browseCategories: { slug: string; name: string }[];
+};
+
 const SORT_OPTIONS = [
   { value: "newest", label: "Newest" },
   { value: "products-high-low", label: "Most Products" },
   { value: "alphabetical", label: "A-Z" },
 ] as const;
 
-export function ShopFilters() {
+export function ShopFilters({ browseCategories }: ShopFiltersProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -23,17 +27,27 @@ export function ShopFilters() {
   // Parse current filters from URL
   const currentQuery = searchParams.get("q") || "";
   const currentLocation = searchParams.get("location") || "";
+  const currentBrowse = searchParams.get("browse") || "";
   const currentSort = searchParams.get("sort") || "newest";
 
   const [search, setSearch] = useState(currentQuery);
   const [location, setLocation] = useState(currentLocation);
+  const [browse, setBrowse] = useState(currentBrowse);
   const [sort, setSort] = useState(currentSort);
+
+  useEffect(() => {
+    setSearch(searchParams.get("q") || "");
+    setLocation(searchParams.get("location") || "");
+    setBrowse(searchParams.get("browse") || "");
+    setSort(searchParams.get("sort") || "newest");
+  }, [searchParams]);
 
   const applyFilters = () => {
     const params = new URLSearchParams();
 
     if (search) params.set("q", search);
     if (location) params.set("location", location);
+    if (browse) params.set("browse", browse);
     if (sort !== "newest") params.set("sort", sort);
 
     startTransition(() => {
@@ -44,6 +58,7 @@ export function ShopFilters() {
   const resetFilters = () => {
     setSearch("");
     setLocation("");
+    setBrowse("");
     setSort("newest");
 
     startTransition(() => {
@@ -51,7 +66,7 @@ export function ShopFilters() {
     });
   };
 
-  const hasActiveFilters = search || location || sort !== "newest";
+  const hasActiveFilters = search || location || browse || sort !== "newest";
 
   return (
     <Card className="p-4 h-fit sticky top-4 space-y-4">
@@ -66,6 +81,24 @@ export function ShopFilters() {
             className="pl-8 h-8 text-sm"
           />
         </div>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-2">
+        <Label className="text-sm font-semibold">Browse category</Label>
+        <select
+          value={browse}
+          onChange={(e) => setBrowse(e.target.value)}
+          className="w-full h-8 px-2 text-sm border border-input rounded-lg bg-background"
+        >
+          <option value="">All categories</option>
+          {browseCategories.map((c) => (
+            <option key={c.slug} value={c.slug}>
+              {c.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       <Separator />

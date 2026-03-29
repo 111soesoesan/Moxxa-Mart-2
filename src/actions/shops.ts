@@ -22,6 +22,8 @@ export type ShopFormData = {
   promotion_body?: string;
   promotion_button_text?: string;
   promotion_button_link?: string;
+  /** Platform browse category for marketplace discovery */
+  browse_category_id?: string | null;
 };
 
 export async function createShop(data: ShopFormData) {
@@ -109,6 +111,19 @@ export async function getShopById(id: string) {
   const supabase = await createClient();
   const { data } = await supabase.from("shops").select("*").eq("id", id).single();
   return data;
+}
+
+/** Labels for checkout when the cart has items from multiple sellers. */
+export async function getCheckoutShopSummaries(shopIds: string[]) {
+  const ids = [...new Set(shopIds)].filter(Boolean);
+  if (ids.length === 0) return [];
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("shops")
+    .select("id, name, slug, logo_url")
+    .in("id", ids)
+    .eq("status", "active");
+  return data ?? [];
 }
 
 export async function getActiveShops(limit = 12, offset = 0) {
@@ -239,17 +254,32 @@ export async function deleteShop(shopId: string) {
 export async function getShopsWithFilters({
   query,
   location,
+  browseSlug,
   limit = 12,
   offset = 0,
   sort = "newest",
 }: {
   query?: string;
   location?: string;
+  /** Filter shops by platform browse category slug */
+  browseSlug?: string;
   limit?: number;
   offset?: number;
   sort?: "newest" | "products-high-low" | "alphabetical";
 }) {
   const supabase = await createClient();
+  let browseCategoryId: string | null = null;
+  if (browseSlug) {
+    const { data: bc } = await supabase
+      .from("browse_categories")
+      .select("id")
+      .eq("slug", browseSlug)
+      .eq("is_active", true)
+      .maybeSingle();
+    browseCategoryId = bc?.id ?? null;
+    if (!browseCategoryId) return [];
+  }
+
   let req = supabase
     .from("shops")
     .select("*, products(id)", { count: "exact" })
@@ -258,6 +288,7 @@ export async function getShopsWithFilters({
   // Apply filters
   if (query) req = req.ilike("name", `%${query}%`);
   if (location) req = req.ilike("location", `%${location}%`);
+  if (browseCategoryId) req = req.eq("browse_category_id", browseCategoryId);
 
   // Apply sorting
   switch (sort) {

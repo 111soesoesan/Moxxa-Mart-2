@@ -1,18 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  getShopCustomers,
-  getCustomerStats,
-  getHighValueCustomers,
-  type Customer,
-} from "@/actions/customers";
+import { getShopCustomers, getCustomerStats, getHighValueCustomers, type Customer } from "@/actions/customers";
+import { resolvedCustomerAvatarUrl, resolvedCustomerName } from "@/lib/customers-display";
 import { getShopBySlug } from "@/actions/shops";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Users, TrendingUp, ShoppingCart, DollarSign, Globe, MessageCircle, Send, PhoneCall, Instagram } from "lucide-react";
+import { Users, TrendingUp, ShoppingCart, DollarSign, Globe, MessageCircle, Send, PhoneCall, Instagram, User } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Link from "next/link";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
@@ -157,9 +154,17 @@ export default function CustomersPage({ params: paramsPromise }: Props) {
             <div className="space-y-3">
               {highValueCustomers.slice(0, 5).map((customer) => (
                 <div key={customer.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div>
-                    <p className="font-medium text-sm">{customer.name}</p>
-                    <p className="text-xs text-muted-foreground">{customer.email}</p>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Avatar className="h-9 w-9 shrink-0">
+                      <AvatarImage src={resolvedCustomerAvatarUrl(customer) ?? undefined} alt="" />
+                      <AvatarFallback className="text-xs">
+                        <User className="h-4 w-4" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{resolvedCustomerName(customer)}</p>
+                      <p className="text-xs text-muted-foreground truncate">{customer.email}</p>
+                    </div>
                   </div>
                   <div className="text-right">
                     <p className="font-bold">{formatCurrency(customer.total_spent)}</p>
@@ -224,9 +229,17 @@ export default function CustomersPage({ params: paramsPromise }: Props) {
                     return (
                       <tr key={customer.id} className="border-b hover:bg-muted/50">
                         <td className="py-3 px-4">
-                          <div>
-                            <p className="font-medium">{customer.name}</p>
-                            <p className="text-xs text-muted-foreground">{customer.email ?? "—"}</p>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8 shrink-0">
+                              <AvatarImage src={resolvedCustomerAvatarUrl(customer) ?? undefined} alt="" />
+                              <AvatarFallback className="text-xs">
+                                {resolvedCustomerName(customer).slice(0, 1).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">{resolvedCustomerName(customer)}</p>
+                              <p className="text-xs text-muted-foreground truncate">{customer.email ?? "—"}</p>
+                            </div>
                           </div>
                         </td>
                         <td className="py-3 px-4 text-center">

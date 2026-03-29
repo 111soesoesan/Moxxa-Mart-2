@@ -7,7 +7,9 @@ type Bucket =
   | "shop-assets"
   | "payment-proofs"
   | "billing-proofs"
-  | "chat-images";
+  | "chat-images"
+  | "avatars"
+  | "blog-images";
 
 async function uploadFile(bucket: Bucket, path: string, file: File): Promise<string> {
   const supabase = createClient();
@@ -57,7 +59,14 @@ export async function uploadPaymentProof(file: File, orderId: string): Promise<s
 
 export async function uploadBlogImage(file: File, shopId: string, blogId: string, index: number): Promise<string> {
   const ext = file.name.split(".").pop();
-  return uploadFile("blog-images" as Bucket, `${shopId}/${blogId}/${index}.${ext}`, file);
+  return uploadFile("blog-images", `${shopId}/${blogId}/${index}.${ext}`, file);
+}
+
+/** Public URL under `avatars/{userId}/...` (RLS: folder must match auth user). */
+export async function uploadProfileAvatar(file: File, userId: string): Promise<string> {
+  const ext = file.name.split(".").pop() ?? "jpg";
+  const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+  return uploadFile("avatars", path, file);
 }
 
 export async function uploadBillingProof(file: File, shopId: string): Promise<string> {

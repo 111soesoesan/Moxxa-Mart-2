@@ -1,13 +1,14 @@
 import { notFound } from "next/navigation";
 import { getShopBySlug } from "@/actions/shops";
 import { getPublicProducts } from "@/actions/products";
+import { getActiveBrowseCategories } from "@/actions/browseCategories";
 import { ProductCard } from "@/components/shared/ProductCard";
 import { ProductFilters } from "@/components/filters/ProductFilters";
-import { Skeleton } from "@/components/ui/skeleton";
 
 type Props = {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{
+    browse?: string;
     minPrice?: string;
     maxPrice?: string;
     condition?: string | string[];
@@ -31,16 +32,23 @@ export default async function ShopProductsPage({ params, searchParams }: Props) 
     : undefined;
   const inStock = params2.inStock === "true";
   const sort = (params2.sort as "newest" | "price-low-high" | "price-high-low") || "newest";
+  const browse = params2.browse;
 
-  const products = await getPublicProducts({
-    shopId: shop.id,
-    limit: 100,
-    minPrice,
-    maxPrice,
-    condition,
-    inStock,
-    sort,
-  });
+  const [products, browseNav] = await Promise.all([
+    getPublicProducts({
+      shopId: shop.id,
+      browseSlug: browse,
+      limit: 100,
+      minPrice,
+      maxPrice,
+      condition,
+      inStock,
+      sort,
+    }),
+    getActiveBrowseCategories(),
+  ]);
+
+  const navItems = browseNav.map((c) => ({ slug: c.slug, name: c.name }));
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -54,7 +62,7 @@ export default async function ShopProductsPage({ params, searchParams }: Props) 
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-1">
-          <ProductFilters />
+          <ProductFilters browseCategories={navItems} />
         </div>
 
         <div className="lg:col-span-3">

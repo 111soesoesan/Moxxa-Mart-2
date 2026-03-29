@@ -10,13 +10,15 @@ import {
   type CustomerActivity,
   type CustomerIdentity,
 } from "@/actions/customers";
+import { resolvedCustomerAvatarUrl, resolvedCustomerName } from "@/lib/customers-display";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   Mail, Phone, Calendar, ShoppingCart, Globe,
-  MessageCircle, Send, Instagram, PhoneCall, Link2,
+  MessageCircle, Send, Instagram, PhoneCall, Link2, User,
 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import Link from "next/link";
 
@@ -100,9 +102,20 @@ export default function CustomerDetailPage({ params: paramsPromise }: Props) {
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between flex-wrap gap-3">
-            <div>
-              <CardTitle className="text-2xl">{customer.name}</CardTitle>
-              <p className="text-xs text-muted-foreground font-mono mt-1">ID: {customer.id}</p>
+            <div className="flex items-start gap-4">
+              <Avatar className="h-14 w-14 shrink-0">
+                <AvatarImage src={resolvedCustomerAvatarUrl(customer) ?? undefined} alt="" />
+                <AvatarFallback>
+                  <User className="h-6 w-6 text-muted-foreground" />
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <CardTitle className="text-2xl">{resolvedCustomerName(customer)}</CardTitle>
+                {customer.user_id && customer.name !== resolvedCustomerName(customer) && (
+                  <p className="text-xs text-muted-foreground mt-1">Shop record name: {customer.name}</p>
+                )}
+                <p className="text-xs text-muted-foreground font-mono mt-1">ID: {customer.id}</p>
+              </div>
             </div>
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${channelMeta.color}`}>
               <ChannelIcon className="h-3.5 w-3.5" />

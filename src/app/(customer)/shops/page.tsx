@@ -1,23 +1,27 @@
 import { Suspense } from "react";
 import { getShopsWithFilters } from "@/actions/shops";
+import { getActiveBrowseCategories } from "@/actions/browseCategories";
 import { ShopCard } from "@/components/shared/ShopCard";
 import { ShopFilters } from "@/components/filters/ShopFilters";
 import { Skeleton } from "@/components/ui/skeleton";
 
-type Props = { searchParams: Promise<{ q?: string; location?: string; sort?: string }> };
+type Props = { searchParams: Promise<{ q?: string; location?: string; browse?: string; sort?: string }> };
 
 async function ShopsGrid({
   query,
   location,
+  browseSlug,
   sort,
 }: {
   query?: string;
   location?: string;
+  browseSlug?: string;
   sort?: "newest" | "products-high-low" | "alphabetical";
 }) {
   const shops = await getShopsWithFilters({
     query,
     location,
+    browseSlug,
     limit: 24,
     sort,
   });
@@ -54,7 +58,10 @@ export default async function ShopsPage({ searchParams }: Props) {
   const params = await searchParams;
   const query = params.q;
   const location = params.location;
+  const browseSlug = params.browse;
   const sort = (params.sort as "newest" | "products-high-low" | "alphabetical") || "newest";
+  const browseNav = await getActiveBrowseCategories();
+  const navItems = browseNav.map((c) => ({ slug: c.slug, name: c.name }));
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -64,15 +71,13 @@ export default async function ShopsPage({ searchParams }: Props) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Filters Sidebar */}
         <div className="lg:col-span-1">
-          <ShopFilters />
+          <ShopFilters browseCategories={navItems} />
         </div>
 
-        {/* Shops Grid */}
         <div className="lg:col-span-3">
           <Suspense fallback={<ShopsGridSkeleton />}>
-            <ShopsGrid query={query} location={location} sort={sort} />
+            <ShopsGrid query={query} location={location} browseSlug={browseSlug} sort={sort} />
           </Suspense>
         </div>
       </div>

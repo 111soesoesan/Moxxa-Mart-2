@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useTransition, useEffect } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,11 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { PriceSlider } from "./PriceSlider";
-import { CATEGORIES, CONDITIONS } from "@/lib/constants";
+import { CONDITIONS } from "@/lib/constants";
 import { Search, X } from "lucide-react";
 
 interface ProductFiltersProps {
   maxPrice?: number;
+  browseCategories: { slug: string; name: string }[];
 }
 
 const SORT_OPTIONS = [
@@ -22,8 +23,9 @@ const SORT_OPTIONS = [
   { value: "price-high-low", label: "Price: High to Low" },
 ] as const;
 
-export function ProductFilters({ maxPrice = 50000 }: ProductFiltersProps) {
+export function ProductFilters({ maxPrice = 50000, browseCategories }: ProductFiltersProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
@@ -32,17 +34,28 @@ export function ProductFilters({ maxPrice = 50000 }: ProductFiltersProps) {
   const currentSort = searchParams.get("sort") || "newest";
   const currentMinPrice = parseInt(searchParams.get("minPrice") || "0");
   const currentMaxPrice = parseInt(searchParams.get("maxPrice") || maxPrice.toString());
-  const currentCategory = searchParams.get("category") || "";
+  const currentBrowse =
+    searchParams.get("browse") || searchParams.get("category") || "";
   const currentConditions = searchParams.getAll("condition");
   const currentInStock = searchParams.get("inStock") === "true";
 
   const [search, setSearch] = useState(currentQuery);
   const [minPrice, setMinPrice] = useState(currentMinPrice);
   const [maxPrice2, setMaxPrice] = useState(currentMaxPrice);
-  const [selectedCategory, setSelectedCategory] = useState(currentCategory);
+  const [selectedBrowse, setSelectedBrowse] = useState(currentBrowse);
   const [selectedConditions, setSelectedConditions] = useState<string[]>(currentConditions);
   const [inStock, setInStock] = useState(currentInStock);
   const [sort, setSort] = useState(currentSort);
+
+  useEffect(() => {
+    setSearch(searchParams.get("q") || "");
+    setSelectedBrowse(searchParams.get("browse") || searchParams.get("category") || "");
+    setMinPrice(parseInt(searchParams.get("minPrice") || "0", 10));
+    setMaxPrice(parseInt(searchParams.get("maxPrice") || maxPrice.toString(), 10));
+    setSelectedConditions(searchParams.getAll("condition"));
+    setInStock(searchParams.get("inStock") === "true");
+    setSort(searchParams.get("sort") || "newest");
+  }, [searchParams, maxPrice]);
 
   const handlePriceChange = (min: number, max: number) => {
     setMinPrice(min);
@@ -61,7 +74,7 @@ export function ProductFilters({ maxPrice = 50000 }: ProductFiltersProps) {
     const params = new URLSearchParams();
 
     if (search) params.set("q", search);
-    if (selectedCategory) params.set("category", selectedCategory);
+    if (selectedBrowse) params.set("browse", selectedBrowse);
     if (sort !== "newest") params.set("sort", sort);
     if (minPrice > 0) params.set("minPrice", minPrice.toString());
     if (maxPrice2 < maxPrice) params.set("maxPrice", maxPrice2.toString());
@@ -77,19 +90,19 @@ export function ProductFilters({ maxPrice = 50000 }: ProductFiltersProps) {
     setSearch("");
     setMinPrice(0);
     setMaxPrice(maxPrice);
-    setSelectedCategory("");
+    setSelectedBrowse("");
     setSelectedConditions([]);
     setInStock(false);
     setSort("newest");
 
     startTransition(() => {
-      router.push("/search");
+      router.push(pathname);
     });
   };
 
   const hasActiveFilters =
     search ||
-    selectedCategory ||
+    selectedBrowse ||
     minPrice > 0 ||
     maxPrice2 < maxPrice ||
     selectedConditions.length > 0 ||
@@ -113,16 +126,16 @@ export function ProductFilters({ maxPrice = 50000 }: ProductFiltersProps) {
 
       <Separator />
 
-      {/* Category Filter */}
+      {/* Browse category (platform) */}
       <div className="space-y-2">
-        <Label className="text-sm font-semibold">Category</Label>
+        <Label className="text-sm font-semibold">Browse category</Label>
         <select
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
+          value={selectedBrowse}
+          onChange={(e) => setSelectedBrowse(e.target.value)}
           className="w-full h-8 px-2 text-sm border border-input rounded-lg bg-background"
         >
-          <option value="">All Categories</option>
-          {CATEGORIES.map((cat) => (
+          <option value="">All categories</option>
+          {browseCategories.map((cat) => (
             <option key={cat.slug} value={cat.slug}>
               {cat.name}
             </option>

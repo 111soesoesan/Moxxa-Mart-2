@@ -1,11 +1,12 @@
 "use client";
 
-import { useTransition, useState, useRef } from "react";
+import { useTransition, useState, useRef, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { createShop, getMyShops, updateShop } from "@/actions/shops";
+import { getActiveBrowseCategories } from "@/actions/browseCategories";
 import { createPaymentMethod } from "@/actions/paymentMethods";
 import { uploadShopProfileImage, uploadShopBanner } from "@/lib/supabase/storage";
 import { slugify } from "@/lib/utils";
@@ -42,6 +43,7 @@ const schema = z.object({
   account_holder: z.string().optional(),
   account_number: z.string().optional(),
   proof_required: z.boolean().default(false),
+  browse_category_id: z.union([z.literal(""), z.string().uuid()]).default(""),
 });
 
 type OnboardingSchema = z.input<typeof schema>;
@@ -58,6 +60,7 @@ export default function OnboardingPage() {
   const [profilePreview, setProfilePreview] = useState<string | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  const [browseCategories, setBrowseCategories] = useState<{ id: string; name: string }[]>([]);
 
   const form = useForm<OnboardingSchema>({
     resolver: zodResolver(schema),
@@ -76,8 +79,15 @@ export default function OnboardingPage() {
       account_holder: "",
       account_number: "",
       proof_required: false,
+      browse_category_id: "",
     },
   });
+
+  useEffect(() => {
+    getActiveBrowseCategories().then((rows) =>
+      setBrowseCategories(rows.map((r) => ({ id: r.id, name: r.name })))
+    );
+  }, []);
 
   const rootError = form.formState.errors.root?.message;
   const errors = form.formState.errors;
@@ -118,6 +128,7 @@ export default function OnboardingPage() {
         location: values.location,
         delivery_policy: values.delivery_policy,
         allow_guest_purchase: values.allow_guest_purchase,
+        browse_category_id: values.browse_category_id || null,
       });
 
       if (!shopResult.data) {
@@ -245,6 +256,27 @@ export default function OnboardingPage() {
                         rows={3}
                         {...form.register("description")}
                       />
+                    </FieldControl>
+                    <FieldError />
+                  </Field>
+
+                  <Field error={errors.browse_category_id?.message}>
+                    <FieldLabel>Browse category</FieldLabel>
+                    <FieldDescription>
+                      Helps customers find your shop on the marketplace. You can change this later in settings.
+                    </FieldDescription>
+                    <FieldControl>
+                      <select
+                        className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                        {...form.register("browse_category_id")}
+                      >
+                        <option value="">Select a category (optional)</option>
+                        {browseCategories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
                     </FieldControl>
                     <FieldError />
                   </Field>

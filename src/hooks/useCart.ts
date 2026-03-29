@@ -1,11 +1,16 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { deriveCartShopId } from "@/lib/cart-utils";
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type CartItem = {
   product_id: string;
   shop_id: string;
+  /** Display / grouping (optional for carts saved before multi-vendor) */
+  shop_name?: string;
+  shop_slug?: string;
   name: string;
   price: number;
   quantity: number;
@@ -33,7 +38,10 @@ function readCart(): Cart {
   if (typeof window === "undefined") return EMPTY_CART;
   try {
     const raw = localStorage.getItem(CART_KEY);
-    return raw ? (JSON.parse(raw) as Cart) : EMPTY_CART;
+    if (!raw) return EMPTY_CART;
+    const parsed = JSON.parse(raw) as Cart;
+    const items = Array.isArray(parsed.items) ? parsed.items : [];
+    return { items, shop_id: deriveCartShopId(items) };
   } catch {
     return EMPTY_CART;
   }
@@ -62,39 +70,27 @@ export function useCart() {
     saveCart(next);
   }, []);
 
-  /** Add a product to the cart. Enforces single-shop constraint. */
-  const addItem = useCallback(
-    (item: CartItem) => {
-      setCart((prev) => {
-        // Enforce single shop — clear cart if shop changes.
-        const base: Cart =
-          prev.shop_id && prev.shop_id !== item.shop_id
-            ? EMPTY_CART
-            : prev;
+  /** Add a product to the cart (multi-vendor: lines from different shops coexist). */
+  const addItem = useCallback((item: CartItem) => {
+    setCart((prev) => {
+      const key = cartLineKey(item);
+      const existing = prev.items.find((i) => cartLineKey(i) === key);
 
-        const key = cartLineKey(item);
-        const existing = base.items.find((i) => cartLineKey(i) === key);
+      const nextItems = existing
+        ? prev.items.map((i) =>
+            cartLineKey(i) === key ? { ...i, quantity: i.quantity + item.quantity } : i
+          )
+        : [...prev.items, item];
 
-        const next: Cart = existing
-          ? {
-              ...base,
-              items: base.items.map((i) =>
-                cartLineKey(i) === key
-                  ? { ...i, quantity: i.quantity + item.quantity }
-                  : i
-              ),
-            }
-          : {
-              shop_id: item.shop_id,
-              items: [...base.items, item],
-            };
+      const next: Cart = {
+        shop_id: deriveCartShopId(nextItems),
+        items: nextItems,
+      };
 
-        saveCart(next);
-        return next;
-      });
-    },
-    []
-  );
+      saveCart(next);
+      return next;
+    });
+  }, []);
 
   /** Update the quantity of an item (removes if qty <= 0). */
   const updateQuantity = useCallback(
@@ -110,17 +106,17 @@ export function useCart() {
           variation_id: opts?.variation_id,
         });
 
+        const nextItems =
+          quantity <= 0
+            ? prev.items.filter((i) => cartLineKey(i) !== key)
+            : prev.items.map((i) => (cartLineKey(i) === key ? { ...i, quantity } : i));
+
         const next: Cart = {
           ...prev,
-          items:
-            quantity <= 0
-              ? prev.items.filter((i) => cartLineKey(i) !== key)
-              : prev.items.map((i) =>
-                  cartLineKey(i) === key ? { ...i, quantity } : i
-                ),
+          items: nextItems,
+          shop_id: deriveCartShopId(nextItems),
         };
 
-        if (next.items.length === 0) next.shop_id = null;
         saveCart(next);
         return next;
       });

@@ -9,7 +9,7 @@
     "lint": "eslint",
     "db:mig": "npx supabase migration new",
     "db:push": "npx supabase db push",
-    "db:types": "npx supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > src/types/supabase.ts"
+    "db:types": "npx supabase gen types typescript --project-id $SUPABASE_PROJECT_ID 2>/dev/null > src/types/supabase.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.53",

@@ -106,11 +106,25 @@ export function WebChatWidget({ shopSlug, shopName = "Support" }: Props) {
     const histData = (await histRes.json()) as {
       active?: boolean;
       conversation_id?: string | null;
+      customer_name?: string | null;
+      profile?: { full_name?: string | null } | null;
       history?: ChatMessage[];
     };
 
     if (histData.conversation_id) {
       setConversationId(histData.conversation_id);
+    }
+
+    const profileName = histData.profile?.full_name?.trim();
+    if (profileName) {
+      setName(profileName);
+      setNameConfirmed(true);
+      saveName(shopSlug, profileName);
+    } else if (histData.customer_name?.trim()) {
+      const n = histData.customer_name.trim();
+      setName(n);
+      setNameConfirmed(true);
+      saveName(shopSlug, n);
     }
 
     if (histData.active && Array.isArray(histData.history)) {
@@ -174,15 +188,22 @@ export function WebChatWidget({ shopSlug, shopName = "Support" }: Props) {
           active?: boolean;
           conversation_id?: string | null;
           customer_name?: string | null;
+          profile?: { full_name?: string | null } | null;
           history?: ChatMessage[];
         }) => {
           if (cancelled) return;
 
           setActive(d.active ?? false);
-          if (d.customer_name) {
-            setName(d.customer_name);
+          const profileName = d.profile?.full_name?.trim();
+          if (profileName) {
+            setName(profileName);
             setNameConfirmed(true);
-            saveName(shopSlug, d.customer_name);
+            saveName(shopSlug, profileName);
+          } else if (d.customer_name?.trim()) {
+            const n = d.customer_name.trim();
+            setName(n);
+            setNameConfirmed(true);
+            saveName(shopSlug, n);
           }
 
           if (!d.active) {

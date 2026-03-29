@@ -3,6 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 
+/** Joined from `profiles` when the customer is linked to an account (`user_id`). */
+export type CustomerProfileEmbed = {
+  full_name: string | null;
+  avatar_url: string | null;
+} | null;
+
 export type Customer = {
   id: string;
   shop_id: string;
@@ -17,6 +23,7 @@ export type Customer = {
   preferred_channel: string;
   created_at: string;
   updated_at: string;
+  profiles?: CustomerProfileEmbed;
 };
 
 export type CustomerIdentity = {
@@ -62,7 +69,7 @@ export async function getShopCustomers(
 
   let req = supabase
     .from("customers")
-    .select("*")
+    .select("*, profiles(full_name, avatar_url)")
     .eq("shop_id", shopId);
 
   if (options?.search) {
@@ -90,7 +97,7 @@ export async function getCustomerById(customerId: string) {
 
   const { data: customer } = await supabase
     .from("customers")
-    .select("*")
+    .select("*, profiles(full_name, avatar_url)")
     .eq("id", customerId)
     .single();
 
@@ -287,7 +294,7 @@ export async function getHighValueCustomers(shopId: string, threshold = 50000) {
 
   const { data } = await supabase
     .from("customers")
-    .select("*")
+    .select("*, profiles(full_name, avatar_url)")
     .eq("shop_id", shopId)
     .gte("total_spent", threshold)
     .order("total_spent", { ascending: false });
@@ -345,7 +352,7 @@ export async function searchCustomersByEmail(shopId: string, email: string) {
 
   const { data } = await supabase
     .from("customers")
-    .select("*")
+    .select("*, profiles(full_name, avatar_url)")
     .eq("shop_id", shopId)
     .eq("email", email)
     .maybeSingle();
@@ -373,6 +380,8 @@ export async function getOrCreateCustomer(
     phone?: string;
     platform?: string;
     platformId?: string;
+    /** Links the shop customer row to `profiles` for avatar/name sync in vendor CRM. */
+    userId?: string | null;
   }
 ) {
   const supabase = await createServiceClient();
@@ -444,6 +453,7 @@ export async function getOrCreateCustomer(
       preferred_channel: customerData.platform || "web",
       total_orders: 0,
       total_spent: 0,
+      user_id: customerData.userId ?? null,
     })
     .select()
     .single();
@@ -455,15 +465,20 @@ export async function getOrCreateCustomer(
   return { data: newCustomer, isNew: true };
 }
 
-/** Backfills missing email or phone on an existing customer record. */
+/** Backfills missing email, phone, or account link on an existing customer record. */
 async function backfillCustomerFields(
   supabase: Awaited<ReturnType<typeof createServiceClient>>,
-  customer: { id: string; email: string | null; phone: string | null },
-  newData: { email?: string; phone?: string; name?: string }
+  customer: { id: string; email: string | null; phone: string | null; user_id: string | null },
+  newData: { email?: string; phone?: string; name?: string; userId?: string | null }
 ) {
-  const updates: Record<string, string> = {};
+  const updates: {
+    email?: string;
+    phone?: string;
+    user_id?: string;
+  } = {};
   if (newData.email && !customer.email) updates.email = newData.email;
   if (newData.phone && !customer.phone) updates.phone = newData.phone;
+  if (newData.userId && !customer.user_id) updates.user_id = newData.userId;
   if (Object.keys(updates).length === 0) return;
   await supabase.from("customers").update(updates).eq("id", customer.id);
 }

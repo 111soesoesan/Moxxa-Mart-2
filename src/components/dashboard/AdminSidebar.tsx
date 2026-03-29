@@ -32,6 +32,7 @@ import {
   LogOut,
   ChevronsUpDown,
   Shield,
+  FolderTree,
 } from "lucide-react";
 import { signOut } from "@/actions/auth";
 
@@ -42,10 +43,11 @@ export type AdminProfile = {
 };
 
 type Props = { profile: AdminProfile };
-//Good
+
 const NAV_ITEMS = [
   { href: '/admin',         label: 'Overview',  icon: LayoutDashboard, exact: true },
   { href: '/admin/shops',   label: 'Shops',     icon: Store,         exact: false },
+  { href: '/admin/browse-categories', label: 'Browse categories', icon: FolderTree, exact: false },
   { href: '/admin/billing', label: 'Billing',   icon: CreditCard,    exact: false },
   { href: '/admin/orders',  label: 'Orders',    icon: ShoppingBag,   exact: false },
 ] as const;
@@ -144,7 +146,7 @@ export function AdminSidebar({ profile }: Props) {
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/">
+                  <Link href="/explore">
                     <Store className="mr-2 h-4 w-4" />Marketplace
                   </Link>
                 </DropdownMenuItem>

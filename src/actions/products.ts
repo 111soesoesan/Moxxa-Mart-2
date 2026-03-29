@@ -101,7 +101,8 @@ export async function getShopProductsWithDetails(shopId: string) {
     .select(
       `*, 
       product_categories(category_id),
-      product_variations(id, is_active, stock_quantity, price)`
+      product_variations(id, is_active, stock_quantity, price),
+      browse_categories(id, name, slug)`
     )
     .eq("shop_id", shopId)
     .order("created_at", { ascending: false });
@@ -131,6 +132,34 @@ export async function bulkDeleteProducts(productIds: string[]) {
   if (error) return { error: error.message };
   revalidatePath("/vendor");
   return { success: true };
+}
+
+export async function bulkUpdateProductBrowseCategory(
+  productIds: string[],
+  browseCategoryId: string | null
+) {
+  if (productIds.length === 0) return { success: true as const };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: products } = await supabase
+    .from("products")
+    .select("id, shops(owner_id)")
+    .in("id", productIds);
+
+  const owned = (products ?? []).filter(
+    (p) => (p.shops as { owner_id: string } | null)?.owner_id === user.id
+  );
+  if (owned.length !== productIds.length) return { error: "Unauthorized for some products" };
+
+  const { error } = await supabase
+    .from("products")
+    .update({ browse_category_id: browseCategoryId })
+    .in("id", productIds);
+  if (error) return { error: error.message };
+  revalidatePath("/vendor");
+  return { success: true as const };
 }
 
 export async function bulkUpdateProductStatus(productIds: string[], status: "draft" | "active" | "archived") {
@@ -164,7 +193,7 @@ export async function getProductById(id: string) {
   const { data } = await supabase
     .from("products")
     .select(
-      `*, shops(id, name, slug, logo_url, allow_guest_purchase, status), product_variations(${PDP_VARIATION_SELECT})`
+      `*, shops(id, name, slug, logo_url, allow_guest_purchase, status, owner_id), product_variations(${PDP_VARIATION_SELECT})`
     )
     .eq("id", id)
     .single();
@@ -173,6 +202,7 @@ export async function getProductById(id: string) {
 
 export async function getPublicProducts({
   category,
+  browseSlug,
   shopId,
   query,
   limit = 20,
@@ -183,7 +213,10 @@ export async function getPublicProducts({
   inStock = false,
   sort = "newest",
 }: {
+  /** Legacy text column on products */
   category?: string;
+  /** Platform browse category slug */
+  browseSlug?: string;
   shopId?: string;
   query?: string;
   limit?: number;
@@ -195,13 +228,26 @@ export async function getPublicProducts({
   sort?: "newest" | "price-low-high" | "price-high-low";
 }) {
   const supabase = await createClient();
+  let browseCategoryId: string | null = null;
+  if (browseSlug) {
+    const { data: bc } = await supabase
+      .from("browse_categories")
+      .select("id")
+      .eq("slug", browseSlug)
+      .eq("is_active", true)
+      .maybeSingle();
+    browseCategoryId = bc?.id ?? null;
+    if (!browseCategoryId) return [];
+  }
+
   let req = supabase
     .from("products")
     .select(`*, shops(id, name, slug, logo_url, status), product_variations(${CATALOG_VARIATION_SELECT})`)
     .eq("is_active", true)
     .eq("list_on_marketplace", true);
 
-  if (category) req = req.eq("category", category);
+  if (browseCategoryId) req = req.eq("browse_category_id", browseCategoryId);
+  else if (category) req = req.eq("category", category);
   if (shopId) req = req.eq("shop_id", shopId);
   if (query) req = req.ilike("name", `%${query}%`);
   // minPrice / maxPrice / inStock: applied after enrich — parent price/stock is 0 for variable products
