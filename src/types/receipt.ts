@@ -16,7 +16,6 @@ export interface OrderReceiptData {
   createdAt: string;
   shopName: string;
   shopSlug?: string | null;
-  shopLogoUrl?: string | null;
   shopPhone?: string | null;
   customerName: string;
   customerPhone: string;

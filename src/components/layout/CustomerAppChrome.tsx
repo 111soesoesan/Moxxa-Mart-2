@@ -18,7 +18,7 @@ export function CustomerAppChrome({
 }) {
   return (
     <>
-      <main className="flex-1 pb-[4.75rem] md:pb-0">{children}</main>
+      <main className="flex-1 pb-24 md:pb-0">{children}</main>
       <div className="hidden md:block mt-auto">
         <Footer />
       </div>

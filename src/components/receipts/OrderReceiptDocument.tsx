@@ -1,7 +1,6 @@
 "use client";
 
 import { forwardRef } from "react";
-import Image from "next/image";
 import type { OrderReceiptData, ReceiptFormat, ReceiptThermalWidthMm } from "@/types/receipt";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { receiptStatusLabel } from "./receipt-status-label";
@@ -11,94 +10,79 @@ function ReceiptInvoiceA4({ data }: { data: OrderReceiptData }) {
 
   return (
     <div
-      className="box-border bg-white text-neutral-900 print:shadow-none"
-      style={{ width: "210mm", minHeight: "297mm", padding: "14mm 16mm" }}
+      className="box-border mx-auto w-full max-w-full bg-white text-neutral-900 print:w-[210mm] print:max-w-none print:shadow-none sm:max-w-[210mm]"
+      style={{ minHeight: "297mm", padding: "14mm 16mm" }}
     >
-      <header className="flex items-start justify-between gap-6 border-b border-neutral-200 pb-6">
-        <div className="flex items-start gap-4 min-w-0">
-          {data.shopLogoUrl ? (
-            <Image
-              src={data.shopLogoUrl}
-              alt=""
-              width={64}
-              height={64}
-              unoptimized
-              crossOrigin="anonymous"
-              className="h-16 w-16 shrink-0 rounded-lg border border-neutral-100 object-contain bg-white"
-            />
-          ) : (
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-dashed border-neutral-300 text-xs text-neutral-400">
-              Logo
-            </div>
+      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-neutral-200 pb-6 sm:gap-6">
+        <div className="min-w-0 max-w-full flex-1">
+          <p className="text-lg font-bold tracking-tight break-words">{data.shopName}</p>
+          {data.shopPhone && (
+            <p className="mt-0.5 text-sm text-neutral-600 break-words">{data.shopPhone}</p>
           )}
-          <div className="min-w-0">
-            <p className="text-lg font-bold tracking-tight">{data.shopName}</p>
-            {data.shopPhone && (
-              <p className="text-sm text-neutral-600 mt-0.5">{data.shopPhone}</p>
-            )}
-          </div>
         </div>
-        <div className="text-right shrink-0">
-          <p className="text-3xl font-bold tracking-tight text-neutral-900">INVOICE</p>
-          <p className="text-sm text-neutral-600 mt-2">
+        <div className="w-full shrink-0 text-left sm:w-auto sm:text-right">
+          <p className="text-2xl font-bold tracking-tight text-neutral-900 sm:text-3xl">INVOICE</p>
+          <p className="mt-2 text-sm text-neutral-600">
             Order <span className="font-mono font-semibold text-neutral-900">{shortId}</span>
           </p>
-          <p className="text-sm text-neutral-600">{formatDateTime(data.createdAt)}</p>
+          <p className="text-sm text-neutral-600 break-words">{formatDateTime(data.createdAt)}</p>
         </div>
       </header>
 
-      <section className="mt-6 grid grid-cols-2 gap-8 text-sm">
-        <div>
+      <section className="mt-6 grid grid-cols-1 gap-6 text-sm sm:grid-cols-2 sm:gap-8">
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Bill to</p>
-          <p className="font-semibold mt-1">{data.customerName}</p>
-          <p className="text-neutral-700 mt-0.5">{data.customerPhone}</p>
+          <p className="mt-1 font-semibold break-words">{data.customerName}</p>
+          <p className="mt-0.5 break-words text-neutral-700">{data.customerPhone}</p>
           {data.customerAddress && (
-            <p className="text-neutral-600 mt-1 max-w-xs">{data.customerAddress}</p>
+            <p className="mt-1 max-w-full break-words text-neutral-600 sm:max-w-xs">{data.customerAddress}</p>
           )}
           {data.customerEmail && (
-            <p className="text-neutral-600 mt-0.5">{data.customerEmail}</p>
+            <p className="mt-0.5 break-all text-neutral-600">{data.customerEmail}</p>
           )}
         </div>
-        <div className="text-right space-y-1">
-          <p>
+        <div className="min-w-0 space-y-1 sm:text-right">
+          <p className="break-words">
             <span className="text-neutral-500">Order status: </span>
             <span className="font-medium">{receiptStatusLabel(data.orderStatus)}</span>
           </p>
-          <p>
+          <p className="break-words">
             <span className="text-neutral-500">Payment: </span>
             <span className="font-medium">{receiptStatusLabel(data.paymentStatus)}</span>
           </p>
-          <p>
+          <p className="break-words">
             <span className="text-neutral-500">Payment method: </span>
             <span className="font-medium">{data.paymentMethodName}</span>
           </p>
         </div>
       </section>
 
-      <div className="mt-8 overflow-hidden rounded-lg border border-neutral-200">
-        <table className="w-full text-sm border-collapse">
+      <div className="mt-8 max-w-full overflow-x-auto rounded-lg border border-neutral-200">
+        <table className="w-full min-w-0 max-w-full border-collapse text-sm">
           <thead>
             <tr className="bg-neutral-50 text-left text-xs font-semibold uppercase tracking-wide text-neutral-600">
-              <th className="px-3 py-2.5 w-10">#</th>
-              <th className="px-3 py-2.5">Item</th>
-              <th className="px-3 py-2.5 text-right w-24">Qty</th>
-              <th className="px-3 py-2.5 text-right w-28">Price</th>
-              <th className="px-3 py-2.5 text-right w-32">Total</th>
+              <th className="whitespace-nowrap px-2 py-2.5 sm:px-3">#</th>
+              <th className="min-w-[8rem] px-2 py-2.5 sm:min-w-0 sm:px-3">Item</th>
+              <th className="whitespace-nowrap px-2 py-2.5 text-right sm:px-3">Qty</th>
+              <th className="whitespace-nowrap px-2 py-2.5 text-right sm:px-3">Price</th>
+              <th className="whitespace-nowrap px-2 py-2.5 text-right sm:px-3">Total</th>
             </tr>
           </thead>
           <tbody>
             {data.items.map((row, i) => (
               <tr key={i} className="border-t border-neutral-100">
-                <td className="px-3 py-2.5 text-neutral-500">{i + 1}</td>
-                <td className="px-3 py-2.5">
-                  <span className="font-medium">{row.name}</span>
+                <td className="whitespace-nowrap px-2 py-2.5 align-top text-neutral-500 sm:px-3">{i + 1}</td>
+                <td className="min-w-0 max-w-full px-2 py-2.5 align-top sm:px-3">
+                  <span className="font-medium break-words">{row.name}</span>
                   {row.variantLabel ? (
-                    <span className="block text-xs text-neutral-500 mt-0.5">{row.variantLabel}</span>
+                    <span className="mt-0.5 block break-words text-xs text-neutral-500">{row.variantLabel}</span>
                   ) : null}
                 </td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{row.quantity}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{formatCurrency(row.unitPrice)}</td>
-                <td className="px-3 py-2.5 text-right font-medium tabular-nums">
+                <td className="whitespace-nowrap px-2 py-2.5 text-right align-top tabular-nums sm:px-3">{row.quantity}</td>
+                <td className="whitespace-nowrap px-2 py-2.5 text-right align-top tabular-nums sm:px-3">
+                  {formatCurrency(row.unitPrice)}
+                </td>
+                <td className="whitespace-nowrap px-2 py-2.5 text-right align-top font-medium tabular-nums sm:px-3">
                   {formatCurrency(row.lineTotal)}
                 </td>
               </tr>
@@ -255,7 +239,7 @@ export const OrderReceiptPrintRoot = forwardRef<
   }
 >(function OrderReceiptPrintRoot({ data, format, thermalWidthMm }, ref) {
   return (
-    <div ref={ref} className="receipt-print-root inline-block bg-white text-black print:bg-white">
+    <div ref={ref} className="receipt-print-root block w-full max-w-full bg-white text-black print:bg-white">
       {format === "a4" ? (
         <ReceiptInvoiceA4 data={data} />
       ) : (

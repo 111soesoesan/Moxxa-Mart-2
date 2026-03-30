@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ShoppingCart,
@@ -27,6 +27,7 @@ import { useCartContext } from "@/context/CartContext";
 import { signOut } from "@/actions/auth";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
+import { useCustomerFloatingUi } from "@/context/CustomerFloatingUiContext";
 
 type Profile = {
   full_name?: string | null;
@@ -70,11 +71,45 @@ export function Header({ profile }: { profile: Profile }) {
   const { itemCount } = useCartContext();
   const isOrdersActive = pathname === "/orders" || pathname.startsWith("/orders/");
   const isNotificationsActive = pathname === "/notifications" || pathname.startsWith("/notifications/");
+  const headerRef = useRef<HTMLElement | null>(null);
+  const floating = useCustomerFloatingUi();
+  const reportMainHeaderHeight = floating?.reportMainHeaderHeight;
+  const mainNavElevated = floating?.mainNavElevated ?? false;
+  const shopNavStuck = floating?.shopNavStuck ?? false;
+  const isShopRoute = pathname.startsWith("/shop/");
+  const mergeWithShopNav = isShopRoute && mainNavElevated && shopNavStuck;
+
+  useLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!el || !reportMainHeaderHeight) return;
+    const measure = () => reportMainHeaderHeight(el.getBoundingClientRect().height);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener("resize", measure, { passive: true });
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [reportMainHeaderHeight]);
 
   return (
     <>
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto flex h-14 md:h-16 items-center justify-between px-3 md:px-4">
+      <header ref={headerRef} className="sticky top-0 z-50 w-full bg-transparent">
+        <div className="mx-auto w-full max-w-7xl px-3 pt-2 sm:px-4 sm:pt-3">
+          <div
+            className={cn(
+              "flex h-14 items-center justify-between gap-2 px-3 backdrop-blur-md transition-all duration-300 md:h-16 md:px-5",
+              mergeWithShopNav ? "rounded-t-2xl rounded-b-none" : "rounded-2xl",
+              mainNavElevated
+                ? mergeWithShopNav
+                  ? "bg-background/95 shadow-none dark:shadow-none"
+                  : "bg-background/95 shadow-md md:shadow-lg dark:shadow-black/20"
+                : "bg-background/40 shadow-none",
+              mergeWithShopNav && "border-b border-border/15",
+              "supports-[backdrop-filter]:bg-background/75"
+            )}
+          >
           <div className="flex items-center gap-4">
             {/* Unified Logo */}
             <Link
@@ -221,6 +256,7 @@ export function Header({ profile }: { profile: Profile }) {
               )}
             </div>
           </div>
+        </div>
         </div>
       </header>
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />

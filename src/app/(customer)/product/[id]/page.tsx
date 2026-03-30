@@ -19,9 +19,10 @@ import {
   type PDPVariation,
 } from "@/components/shared/VariationSelector";
 import { useCartContext } from "@/context/CartContext";
-import { formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { effectiveVariationUnitPrice } from "@/lib/product-pricing";
-import { ShoppingCart, Store, AlertCircle, CheckCircle } from "lucide-react";
+import { ShoppingCart, Store, AlertCircle, CheckCircle, Truck, BadgeCheck } from "lucide-react";
+import { CONDITIONS } from "@/lib/constants";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProductRatingSection } from "@/components/ratings/ProductRatingSection";
@@ -125,12 +126,17 @@ export default function ProductPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-10 grid grid-cols-1 md:grid-cols-2 gap-10">
-        <Skeleton className="aspect-square rounded-xl" />
-        <div className="space-y-4">
-          <Skeleton className="h-8 w-3/4" />
-          <Skeleton className="h-6 w-1/3" />
-          <Skeleton className="h-20 w-full" />
+      <div className="min-h-screen bg-muted/20">
+        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:py-12">
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-16">
+            <Skeleton className="aspect-square rounded-2xl" />
+            <div className="space-y-5">
+              <Skeleton className="h-3 w-48" />
+              <Skeleton className="h-10 w-full max-w-md" />
+              <Skeleton className="h-8 w-32" />
+              <Skeleton className="h-24 w-full max-w-lg" />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -147,6 +153,7 @@ export default function ProductPage() {
     name: string;
     slug: string;
     logo_url?: string | null;
+    profile_image_url?: string | null;
     allow_guest_purchase?: boolean;
   } | null;
 
@@ -217,81 +224,106 @@ export default function ProductPage() {
 
   const showPurchaseBlock = isVariable ? purchasable : product.stock > 0 || !product.track_inventory;
 
+  const conditionLabel = CONDITIONS.find((c) => c.value === product.condition)?.label;
+
   return (
-    <div className="container mx-auto px-4 py-10">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-        <div className="space-y-3">
-          <div className="aspect-square relative rounded-xl overflow-hidden bg-muted">
-            {heroUrl ? (
-              <Image
-                src={heroUrl}
-                alt={product.name}
-                fill
-                className="object-cover"
-                priority
-                sizes="(max-width: 768px) 100vw, 50vw"
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center text-6xl">📦</div>
+    <div className="min-h-screen bg-muted/20">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:py-12">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-16 xl:gap-20">
+          <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+            <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted shadow-sm">
+              {heroUrl ? (
+                <Image
+                  src={heroUrl}
+                  alt={product.name}
+                  fill
+                  className="object-cover"
+                  priority
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-6xl">📦</div>
+              )}
+            </div>
+            {product.image_urls && product.image_urls.length > 1 && (
+              <div className="flex gap-3 overflow-x-auto pb-1">
+                {product.image_urls.map((url, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setSelectedImage(i)}
+                    className={cn(
+                      "relative size-20 shrink-0 overflow-hidden rounded-xl border-2 transition-all",
+                      selectedImage === i ? "border-foreground ring-2 ring-primary/20" : "border-transparent opacity-80 hover:opacity-100"
+                    )}
+                  >
+                    <Image src={url} alt={`View ${i + 1}`} fill className="object-cover" sizes="80px" />
+                  </button>
+                ))}
+              </div>
             )}
           </div>
-          {product.image_urls && product.image_urls.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {product.image_urls.map((url, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setSelectedImage(i)}
-                  className={`relative w-16 h-16 shrink-0 rounded-lg overflow-hidden border-2 transition-colors ${
-                    selectedImage === i ? "border-primary" : "border-transparent"
-                  }`}
-                >
-                  <Image src={url} alt={`View ${i + 1}`} fill className="object-cover" sizes="64px" />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
 
-        <div className="space-y-5">
-          <div>
-            <h1 className="text-2xl font-bold leading-tight">{product.name}</h1>
-            <div className="flex items-center gap-2 mt-2">
-              <StatusBadge type="condition" value={product.condition} />
-              {product.category && <Badge variant="outline">{product.category}</Badge>}
-            </div>
-          </div>
-
-          <ProductRatingSection
-            productId={product.id}
-            ratingAvg={product.rating_avg}
-            ratingCount={product.rating_count}
-            signInNextPath={`/product/${product.id}`}
-          />
-
-          <p className="text-3xl font-bold text-primary">
-            {isVariable && !resolvedVariation && minFrom != null && minFrom > 0 ? (
-              <>From {formatCurrency(minFrom)}</>
-            ) : (
-              formatCurrency(displayUnitPrice)
+          <div className="flex flex-col gap-6 lg:max-w-xl lg:justify-center lg:pt-2">
+            {(product.category || conditionLabel) && (
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                {product.category && (
+                  <Link
+                    href={`/products?category=${encodeURIComponent(product.category)}`}
+                    className="hover:text-foreground"
+                  >
+                    {product.category}
+                  </Link>
+                )}
+                {product.category && conditionLabel && <span className="mx-2 text-muted-foreground/60">—</span>}
+                {conditionLabel}
+              </p>
             )}
-          </p>
 
-          {product.description && (
-            <p className="text-muted-foreground leading-relaxed">{product.description}</p>
-          )}
+            <div className="space-y-4">
+              <h1 className="text-3xl font-bold leading-[1.15] tracking-tight text-foreground sm:text-4xl">
+                {product.name}
+              </h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge type="condition" value={product.condition} />
+                {product.category && (
+                  <Badge variant="outline" className="font-normal">
+                    {product.category}
+                  </Badge>
+                )}
+              </div>
+            </div>
 
-          {isVariable && axes.length > 0 && (
-            <VariationSelector
-              variations={variations}
-              productTrackInventory={product.track_inventory}
-              axes={axes}
-              selected={selectedAttributes}
-              onSelect={handleSelectAttribute}
+            <ProductRatingSection
+              productId={product.id}
+              ratingAvg={product.rating_avg}
+              ratingCount={product.rating_count}
+              signInNextPath={`/product/${product.id}`}
             />
-          )}
 
-          <div className="space-y-2">
+            <p className="text-2xl font-semibold tracking-tight text-primary sm:text-3xl">
+              {isVariable && !resolvedVariation && minFrom != null && minFrom > 0 ? (
+                <>From {formatCurrency(minFrom)}</>
+              ) : (
+                formatCurrency(displayUnitPrice)
+              )}
+            </p>
+
+            {product.description && (
+              <p className="max-w-prose text-[15px] leading-relaxed text-muted-foreground">{product.description}</p>
+            )}
+
+            {isVariable && axes.length > 0 && (
+              <VariationSelector
+                variations={variations}
+                productTrackInventory={product.track_inventory}
+                axes={axes}
+                selected={selectedAttributes}
+                onSelect={handleSelectAttribute}
+              />
+            )}
+
+            <div className="space-y-2">
             {isVariable ? (
               !minFrom || minFrom <= 0 ? (
                 <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -354,23 +386,23 @@ export default function ProductPage() {
           </div>
 
           {showPurchaseBlock && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="flex items-center gap-3">
-                <span className="text-sm font-medium">Qty:</span>
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quantity</span>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="icon"
-                    className="h-8 w-8"
+                    className="h-9 w-9"
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
                   >
                     −
                   </Button>
-                  <span className="w-8 text-center font-medium">{quantity}</span>
+                  <span className="min-w-8 text-center font-semibold tabular-nums">{quantity}</span>
                   <Button
                     variant="outline"
                     size="icon"
-                    className="h-8 w-8"
+                    className="h-9 w-9"
                     onClick={() => {
                       if (isVariable && resolvedVariation && resolvedTracksStock) {
                         const cap =
@@ -387,35 +419,46 @@ export default function ProductPage() {
                   </Button>
                 </div>
               </div>
-              <div className="flex gap-3">
-                <Button className="flex-1" onClick={handleAddToCart}>
-                  <ShoppingCart className="mr-2 h-4 w-4" />
-                  Add to Cart
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Button size="lg" className="h-12 flex-1 font-semibold" onClick={handleAddToCart}>
+                  <ShoppingCart className="mr-2 size-4" />
+                  Add to cart
                 </Button>
-                <Button variant="outline" className="flex-1" onClick={handleBuyNow}>
-                  Buy Now
+                <Button size="lg" variant="outline" className="h-12 flex-1 font-semibold" onClick={handleBuyNow}>
+                  Buy now
                 </Button>
               </div>
             </div>
           )}
 
           {shop && (
-            <>
-              <Separator />
-              <Link href={`/shop/${shop.slug}`} className="flex items-center gap-3 group">
-                <Avatar className="h-10 w-10">
-                  <AvatarImage src={shop.logo_url ?? undefined} />
+            <div className="space-y-4 border-t border-border/60 pt-6">
+              {shop.allow_guest_purchase && (
+                <div className="flex gap-3 text-sm text-muted-foreground">
+                  <Truck className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+                  <p>Guest checkout is available for this shop when you don&apos;t want to create an account.</p>
+                </div>
+              )}
+              <div className="flex gap-3 text-sm text-muted-foreground">
+                <BadgeCheck className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+                <p>Purchases are fulfilled by the seller. Use ratings and order history to track your experience.</p>
+              </div>
+              <Separator className="opacity-50" />
+              <Link href={`/shop/${shop.slug}`} className="group flex items-center gap-3">
+                <Avatar className="size-11 border border-border/60">
+                  <AvatarImage src={(shop.profile_image_url ?? shop.logo_url) ?? undefined} />
                   <AvatarFallback>
-                    <Store className="h-4 w-4" />
+                    <Store className="size-4" />
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="text-xs text-muted-foreground">Sold by</p>
-                  <p className="font-semibold group-hover:text-primary transition-colors">{shop.name}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Sold by</p>
+                  <p className="font-semibold transition-colors group-hover:text-primary">{shop.name}</p>
                 </div>
               </Link>
-            </>
+            </div>
           )}
+        </div>
         </div>
       </div>
     </div>

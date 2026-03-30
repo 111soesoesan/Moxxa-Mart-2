@@ -2,8 +2,6 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useReactToPrint } from "react-to-print";
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
 import { FileDown, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -16,30 +14,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { OrderReceiptData, ReceiptFormat, ReceiptThermalWidthMm } from "@/types/receipt";
 import { OrderReceiptPrintRoot } from "./OrderReceiptDocument";
-
-function addImageMultiPageA4(pdf: jsPDF, imgData: string) {
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const imgProps = pdf.getImageProperties(imgData);
-  const imgWidth = pageWidth;
-  const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
-  let heightLeft = imgHeight;
-  let position = 0;
-
-  pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-  heightLeft -= pageHeight;
-
-  while (heightLeft > 0) {
-    position = heightLeft - imgHeight;
-    pdf.addPage();
-    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-  }
-}
 
 export function PrintReceiptDialog({
   data,
@@ -53,8 +30,9 @@ export function PrintReceiptDialog({
   const [open, setOpen] = useState(false);
   const [format, setFormat] = useState<ReceiptFormat>("a4");
   const [thermalWidthMm, setThermalWidthMm] = useState<ReceiptThermalWidthMm>("80");
+
+  // One ref shared by Print and Save as PDF — both use react-to-print.
   const printRef = useRef<HTMLDivElement>(null);
-  const [saving, setSaving] = useState(false);
 
   const shortId = data.orderId.slice(0, 8);
 
@@ -80,42 +58,17 @@ export function PrintReceiptDialog({
     },
   });
 
-  const savePdf = async () => {
-    const el = printRef.current;
-    if (!el) return;
-    setSaving(true);
-    try {
-      const canvas = await html2canvas(el, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-      });
-      const imgData = canvas.toDataURL("image/png", 1.0);
-
-      if (format === "a4") {
-        const pdf = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
-        addImageMultiPageA4(pdf, imgData);
-        pdf.save(`moxxa-invoice-${shortId}.pdf`);
-      } else {
-        const pdfW = thermalWidthMm === "80" ? 80 : 58;
-        const imgW = pdfW;
-        const imgH = (canvas.height * imgW) / canvas.width;
-        const pdf = new jsPDF({
-          orientation: "p",
-          unit: "mm",
-          format: [pdfW, Math.max(imgH + 2, 24)],
-        });
-        pdf.addImage(imgData, "PNG", 0, 0, imgW, imgH);
-        pdf.save(`moxxa-receipt-${shortId}.pdf`);
-      }
-      toast.success("PDF saved.");
-    } catch {
-      toast.error("Could not create PDF. If the shop logo fails to load, try again or use Print.");
-    } finally {
-      setSaving(false);
-    }
-  };
+  // "Save as PDF" reuses the same print flow — the browser's print dialog
+  // has a native "Save as PDF" destination that works perfectly everywhere.
+  // This replaces the html2canvas + jsPDF approach which fails inside Dialogs.
+  const handleSaveAsPdf = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: () => documentTitle,
+    pageStyle,
+    onPrintError: () => {
+      toast.error("Could not open the print dialog. Try the Print button instead.");
+    },
+  });
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -133,7 +86,7 @@ export function PrintReceiptDialog({
       >
         <div className="border-b border-border px-4 py-3 pr-12">
           <DialogHeader className="gap-1">
-            <DialogTitle>Receipt & invoice</DialogTitle>
+            <DialogTitle>Receipt &amp; invoice</DialogTitle>
             <DialogDescription>
               Choose format, then print or save as PDF.
             </DialogDescription>
@@ -187,9 +140,9 @@ export function PrintReceiptDialog({
           )}
         </div>
 
-        <ScrollArea className="h-[min(420px,52vh)] min-h-[200px] shrink-0 bg-muted/50">
-          <div className="flex justify-center p-4 print:p-0">
-            <div className="rounded-lg border border-border bg-white shadow-sm print:border-0 print:shadow-none overflow-auto max-w-full">
+        <div className="h-[min(420px,52vh)] min-h-[200px] shrink-0 overflow-y-auto overflow-x-hidden bg-muted/50">
+          <div className="flex w-full min-w-0 justify-center p-4 print:p-0">
+            <div className="w-full min-w-0 max-w-full rounded-lg border border-border bg-white shadow-sm print:w-auto print:border-0 print:shadow-none">
               <OrderReceiptPrintRoot
                 ref={printRef}
                 data={data}
@@ -198,7 +151,7 @@ export function PrintReceiptDialog({
               />
             </div>
           </div>
-        </ScrollArea>
+        </div>
 
         <div className="flex flex-col-reverse gap-2 border-t border-border bg-muted/50 p-4 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>
@@ -207,11 +160,10 @@ export function PrintReceiptDialog({
           <Button
             type="button"
             variant="secondary"
-            disabled={saving}
-            onClick={() => void savePdf()}
+            onClick={() => handleSaveAsPdf()}
           >
             <FileDown className="mr-2 h-4 w-4" />
-            {saving ? "Saving…" : "Save as PDF"}
+            Save as PDF
           </Button>
           <Button type="button" onClick={() => handlePrint()}>
             <Printer className="mr-2 h-4 w-4" />

@@ -33,10 +33,10 @@ export function AppBottomNav({ profile }: { profile: Profile }) {
     active: boolean;
   }[] = [
     {
-      href: "/explore",
-      label: "Home",
-      icon: Home,
-      active: pathname === "/explore",
+      href: "/shops",
+      label: "Shops",
+      icon: Store,
+      active: pathname.startsWith("/shops") || pathname.startsWith("/shop/"),
     },
     {
       href: "/products",
@@ -45,10 +45,10 @@ export function AppBottomNav({ profile }: { profile: Profile }) {
       active: pathname.startsWith("/products"),
     },
     {
-      href: "/shops",
-      label: "Shops",
-      icon: Store,
-      active: pathname.startsWith("/shops") || pathname.startsWith("/shop/"),
+      href: "/explore",
+      label: "Home",
+      icon: Home,
+      active: pathname === "/explore",
     },
     {
       href: "/orders",
@@ -66,23 +66,34 @@ export function AppBottomNav({ profile }: { profile: Profile }) {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 inset-x-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pb-[env(safe-area-inset-bottom,0px)]"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-50 md:hidden"
       aria-label="Main navigation"
     >
-      <div className="flex items-stretch justify-around h-14 max-w-lg mx-auto px-1">
-        {items.map(({ href, label, icon: Icon, active }) => (
-          <Link
-            key={href}
-            href={href}
-            className={cn(
-              "flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors",
-              active ? "text-primary" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Icon className={cn("h-5 w-5", active && "stroke-[2.5]")} aria-hidden />
-            <span>{label}</span>
-          </Link>
-        ))}
+      <div className="pointer-events-auto mx-auto flex max-w-lg justify-center px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
+        <div
+          className={cn(
+            "w-full rounded-2xl border border-border/40 px-2 py-1.5 shadow-md backdrop-blur-xl",
+            "bg-background/80 supports-[backdrop-filter]:bg-background/70",
+            "dark:border-border/50 dark:bg-background/75 dark:supports-[backdrop-filter]:bg-background/65"
+          )}
+        >
+          <div className="flex h-14 items-stretch justify-around">
+            {items.map(({ href, label, icon: Icon, active }) => (
+              <Link
+                key={href}
+                href={href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors",
+                  active ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Icon className={cn("h-5 w-5", active && "stroke-[2.5]")} aria-hidden />
+                <span>{label}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
       </div>
     </nav>
   );

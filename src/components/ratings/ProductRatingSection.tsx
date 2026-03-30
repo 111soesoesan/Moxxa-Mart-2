@@ -50,42 +50,45 @@ export function ProductRatingSection({
   };
 
   if (viewer === "loading") {
-    return (
-      <div className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">Loading ratings…</div>
-    );
+    return <p className="text-xs text-muted-foreground">Loading ratings…</p>;
   }
 
   return (
-    <div className="rounded-xl border border-amber-500/25 bg-gradient-to-br from-amber-500/5 to-card px-4 py-3 space-y-2 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-semibold">Rate this product</p>
-        <StarSummary avg={ratingAvg ?? null} count={ratingCount ?? 0} />
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          Ratings
+        </p>
+        <StarSummary avg={ratingAvg ?? null} count={ratingCount ?? 0} compact />
       </div>
+
       {viewer === "owner" && (
-        <p className="text-xs text-muted-foreground">Ratings from buyers appear here.</p>
+        <p className="text-xs leading-relaxed text-muted-foreground">Buyer ratings will show here.</p>
       )}
+
       {viewer === "guest" && (
-        <div className="space-y-2 pt-0.5">
-          <p className="text-xs text-muted-foreground">
-            Tap a star to{" "}
-            <Link href={loginHref} className="text-primary font-medium underline-offset-2 hover:underline">
-              sign in
+        <div className="space-y-2">
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            <Link href={loginHref} className="font-medium text-foreground underline-offset-4 hover:underline">
+              Sign in
             </Link>{" "}
-            and submit your rating.
+            to rate this product.
           </p>
           <StarPicker
             value={null}
-            onSelect={(_stars: number) => {
+            onSelect={() => {
               router.push(loginHref);
             }}
-            size="md"
+            size="sm"
+            accent="primary"
           />
         </div>
       )}
+
       {viewer === "rater" && (
-        <div className="space-y-1.5 pt-0.5">
-          <p className="text-sm text-muted-foreground">{myStars ? "Update your rating" : "Your rating"}</p>
-          <StarPicker value={myStars} onSelect={onSelect} disabled={pending} size="md" />
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">{myStars ? "Update your rating" : "Your rating"}</p>
+          <StarPicker value={myStars} onSelect={onSelect} disabled={pending} size="sm" accent="primary" />
         </div>
       )}
     </div>

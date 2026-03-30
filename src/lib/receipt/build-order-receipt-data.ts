@@ -5,7 +5,6 @@ import { formatVariant } from "@/lib/utils";
 type ShopJoin = {
   name: string;
   slug?: string;
-  logo_url?: string | null;
   phone?: string | null;
 } | null;
 
@@ -64,7 +63,6 @@ export function buildOrderReceiptData(order: OrderReceiptSource): OrderReceiptDa
     createdAt: order.created_at,
     shopName: shop?.name ?? "Shop",
     shopSlug: shop?.slug ?? null,
-    shopLogoUrl: shop?.logo_url ?? null,
     shopPhone: shop?.phone ?? null,
     customerName: customer?.full_name ?? "—",
     customerPhone: customer?.phone ?? "—",

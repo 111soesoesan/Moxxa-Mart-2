@@ -193,7 +193,7 @@ export async function getProductById(id: string) {
   const { data } = await supabase
     .from("products")
     .select(
-      `*, shops(id, name, slug, logo_url, allow_guest_purchase, status, owner_id), product_variations(${PDP_VARIATION_SELECT})`
+      `*, shops(id, name, slug, logo_url, profile_image_url, allow_guest_purchase, status, owner_id), product_variations(${PDP_VARIATION_SELECT})`
     )
     .eq("id", id)
     .single();
@@ -242,7 +242,7 @@ export async function getPublicProducts({
 
   let req = supabase
     .from("products")
-    .select(`*, shops(id, name, slug, logo_url, status), product_variations(${CATALOG_VARIATION_SELECT})`)
+    .select(`*, shops(id, name, slug, logo_url, profile_image_url, status), product_variations(${CATALOG_VARIATION_SELECT})`)
     .eq("is_active", true)
     .eq("list_on_marketplace", true);
 
@@ -316,7 +316,7 @@ export async function getShopProductsForDirectAccess({
   const supabase = await createClient();
   let req = supabase
     .from("products")
-    .select(`*, shops(id, name, slug, logo_url, status), product_variations(${CATALOG_VARIATION_SELECT})`)
+    .select(`*, shops(id, name, slug, logo_url, profile_image_url, status), product_variations(${CATALOG_VARIATION_SELECT})`)
     .eq("shop_id", shopId)
     .eq("is_active", true);
 
