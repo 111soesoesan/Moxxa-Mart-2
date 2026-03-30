@@ -47,18 +47,19 @@ function NavLink({
     href === "/explore"
       ? pathname === "/explore"
       : pathname === href || pathname.startsWith(`${href}/`);
-  const exploreActive = href === "/explore" && active;
   return (
     <Link
       href={href}
       className={cn(
-        "text-sm transition-colors hover:text-foreground",
-        exploreActive && "font-bold text-primary border-b-2 border-primary pb-0.5 -mb-0.5",
-        !exploreActive && active && "font-medium text-foreground",
+        "text-sm transition-all relative pb-1.5 hover:text-foreground",
+        active && "font-bold text-primary",
         !active && "font-medium text-muted-foreground"
       )}
     >
       {children}
+      {active && (
+        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
+      )}
     </Link>
   );
 }
@@ -67,6 +68,8 @@ export function Header({ profile }: { profile: Profile }) {
   const pathname = usePathname() || "";
   const [cartOpen, setCartOpen] = useState(false);
   const { itemCount } = useCartContext();
+  const isOrdersActive = pathname === "/orders" || pathname.startsWith("/orders/");
+  const isNotificationsActive = pathname === "/notifications" || pathname.startsWith("/notifications/");
 
   return (
     <>
@@ -112,7 +115,10 @@ export function Header({ profile }: { profile: Profile }) {
             <Button
               variant="ghost"
               size="icon"
-              className="hidden md:inline-flex relative rounded-full"
+              className={cn(
+                "hidden md:inline-flex relative rounded-full transition-colors",
+                isOrdersActive && "bg-primary/10 text-primary hover:bg-primary/20"
+              )}
               asChild
               aria-label="Orders"
             >
@@ -136,7 +142,16 @@ export function Header({ profile }: { profile: Profile }) {
               )}
             </Button>
 
-            <Button variant="ghost" size="icon" className="relative rounded-full" asChild aria-label="Notifications">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "relative rounded-full transition-colors",
+                isNotificationsActive && "bg-primary/10 text-primary hover:bg-primary/20"
+              )}
+              asChild
+              aria-label="Notifications"
+            >
               <Link href="/notifications">
                 <Bell className="h-5 w-5" />
               </Link>

@@ -23,8 +23,8 @@ export function CartDrawer({ open, onClose }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent className="flex flex-col w-full sm:max-w-md">
-        <SheetHeader>
+      <SheetContent className="flex flex-col w-full p-0 sm:max-w-md">
+        <SheetHeader className="px-6 py-4">
           <SheetTitle className="flex flex-wrap items-center gap-2">
             Cart ({itemCount})
             {shopCount > 1 && (
@@ -46,7 +46,8 @@ export function CartDrawer({ open, onClose }: Props) {
           </div>
         ) : (
           <>
-            <ScrollArea className="flex-1 -mx-6 px-6">
+            <ScrollArea className="flex-1">
+              <div className="px-6 h-full">
               <div className="space-y-6 py-2">
                 {groups.map(({ shopId, items }) => {
                   const label =
@@ -56,7 +57,7 @@ export function CartDrawer({ open, onClose }: Props) {
                   const slug = items[0]?.shop_slug;
                   return (
                     <div key={shopId} className="space-y-3">
-                      <div className="flex items-center justify-between gap-2 sticky top-0 bg-background/95 backdrop-blur-sm py-1 z-[1] border-b border-border/60">
+                      <div className="flex items-center justify-between gap-2 sticky top-0 bg-background/95 backdrop-blur-sm py-1.5 z-[1] border-b border-border/60 px-1">
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground truncate">
                           {label}
                         </p>
@@ -143,9 +144,10 @@ export function CartDrawer({ open, onClose }: Props) {
                   );
                 })}
               </div>
-            </ScrollArea>
+            </div>
+          </ScrollArea>
             <Separator />
-            <SheetFooter className="flex-col gap-3 sm:flex-col">
+            <SheetFooter className="flex-col gap-3 px-6 py-6 sm:flex-col">
               <div className="flex justify-between font-semibold text-base">
                 <span>Subtotal</span>
                 <span>{formatCurrency(subtotal)}</span>

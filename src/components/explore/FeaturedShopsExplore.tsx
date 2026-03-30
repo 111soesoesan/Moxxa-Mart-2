@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getActiveShops } from "@/actions/shops";
-import { ExploreFeaturedShopTile } from "./ExploreFeaturedShopTile";
+import { MarketplaceShopCard } from "@/components/marketplace/MarketplaceShopCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 
@@ -27,9 +27,9 @@ export async function FeaturedShopsExplore() {
           <Link href="/shops">View all shops</Link>
         </Button>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5">
         {shops.map((s) => (
-          <ExploreFeaturedShopTile key={s.id} shop={s} />
+          <MarketplaceShopCard key={s.id} shop={s} />
         ))}
       </div>
     </section>
@@ -43,12 +43,20 @@ export function FeaturedShopsExploreSkeleton() {
         <Skeleton className="h-4 w-40" />
         <Skeleton className="h-4 w-14" />
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3">
-        {Array.from({ length: 12 }).map((_, i) => (
-          <div key={i}>
-            <Skeleton className="aspect-[3/2] rounded-md" />
-            <Skeleton className="h-4 w-[80%] mt-2" />
-            <Skeleton className="h-3 w-full mt-1" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="overflow-hidden rounded-xl border border-border/60 bg-card">
+            <Skeleton className="aspect-[16/9] w-full rounded-none" />
+            <div className="space-y-2 p-4">
+              <Skeleton className="h-5 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-px w-full" />
+              <div className="flex justify-between">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+            </div>
           </div>
         ))}
       </div>

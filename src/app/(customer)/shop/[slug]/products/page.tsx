@@ -2,8 +2,16 @@ import { notFound } from "next/navigation";
 import { getShopBySlug } from "@/actions/shops";
 import { getPublicProducts } from "@/actions/products";
 import { getActiveBrowseCategories } from "@/actions/browseCategories";
-import { ProductCard } from "@/components/shared/ProductCard";
+import {
+  MarketplaceProductTile,
+} from "@/components/marketplace/MarketplaceProductTile";
+import {
+  toMarketplaceProductTileData,
+  type EnrichedCatalogRow as EnrichedProduct,
+} from "@/lib/marketplace-utils";
+import type { CatalogProductBase } from "@/lib/product-pricing";
 import { ProductFilters } from "@/components/filters/ProductFilters";
+
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -14,6 +22,7 @@ type Props = {
     condition?: string | string[];
     inStock?: string;
     sort?: string;
+    q?: string;
   }>;
 };
 
@@ -33,6 +42,7 @@ export default async function ShopProductsPage({ params, searchParams }: Props) 
   const inStock = params2.inStock === "true";
   const sort = (params2.sort as "newest" | "price-low-high" | "price-high-low") || "newest";
   const browse = params2.browse;
+  const query = params2.q?.trim() || undefined;
 
   const [products, browseNav] = await Promise.all([
     getPublicProducts({
@@ -44,6 +54,7 @@ export default async function ShopProductsPage({ params, searchParams }: Props) 
       condition,
       inStock,
       sort,
+      query,
     }),
     getActiveBrowseCategories(),
   ]);
@@ -57,6 +68,11 @@ export default async function ShopProductsPage({ params, searchParams }: Props) 
         <p className="text-muted-foreground">
           Browsing all products from {shop.name}
           {products.length > 0 && ` (${products.length} items)`}
+          {query ? (
+            <span className="mt-1 block text-sm">
+              Search: <span className="font-medium text-foreground">&ldquo;{query}&rdquo;</span>
+            </span>
+          ) : null}
         </p>
       </div>
 
@@ -74,12 +90,12 @@ export default async function ShopProductsPage({ params, searchParams }: Props) 
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {products.map((p) => (
-                <ProductCard
+                <MarketplaceProductTile
                   key={p.id}
-                  product={{
-                    ...p,
-                    shops: { name: shop.name, slug: shop.slug },
-                  }}
+                  product={toMarketplaceProductTileData(p as EnrichedProduct, {
+                    name: shop.name,
+                    slug: shop.slug,
+                  })}
                 />
               ))}
             </div>

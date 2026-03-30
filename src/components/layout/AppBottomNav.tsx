@@ -13,7 +13,6 @@ type Profile = {
 
 function showNavForPath(pathname: string) {
   if (pathname.startsWith("/checkout")) return false;
-  if (pathname.startsWith("/shop/")) return false;
   if (pathname.startsWith("/product/")) return false;
   if (pathname.startsWith("/vendor")) return false;
   if (pathname.startsWith("/admin")) return false;
@@ -49,7 +48,7 @@ export function AppBottomNav({ profile }: { profile: Profile }) {
       href: "/shops",
       label: "Shops",
       icon: Store,
-      active: pathname.startsWith("/shops"),
+      active: pathname.startsWith("/shops") || pathname.startsWith("/shop/"),
     },
     {
       href: "/orders",

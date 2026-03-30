@@ -1,37 +1,20 @@
 import Link from "next/link";
 import { getPublicProducts } from "@/actions/products";
 import type { CatalogProductBase } from "@/lib/product-pricing";
-import { ExploreProductTile, type ExploreProductTileData } from "./ExploreProductTile";
+import {
+  MarketplaceProductTile,
+} from "@/components/marketplace/MarketplaceProductTile";
+import {
+  toMarketplaceProductTileData,
+  type EnrichedCatalogRow as EnrichedCatalogProduct,
+} from "@/lib/marketplace-utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 
-type EnrichedCatalogProduct = CatalogProductBase & {
-  display_price: number;
-  display_in_stock: boolean;
-  created_at?: string;
-};
-
-function toTileData(p: EnrichedCatalogProduct): ExploreProductTileData {
-  const shop = p.shops as { name: string; slug: string } | null | undefined;
-  return {
-    id: p.id,
-    name: p.name,
-    image_urls: p.image_urls ?? [],
-    display_price: p.display_price,
-    category: p.category ?? null,
-    condition: p.condition,
-    product_type: p.product_type ?? "simple",
-    created_at: p.created_at ?? "",
-    display_in_stock: p.display_in_stock,
-    shop_name: shop?.name ?? null,
-    shop_slug: shop?.slug ?? null,
-  };
-}
 
 export async function FreshPicksExplore() {
   const products = await getPublicProducts({ limit: 12, sort: "newest" });
-  const tiles = products.map((p) => toTileData(p as EnrichedCatalogProduct));
-  if (tiles.length === 0) return null;
+  if (products.length === 0) return null;
 
   return (
     <section className="mb-8 md:mb-10 pb-4">
@@ -52,8 +35,11 @@ export async function FreshPicksExplore() {
         </Button>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3">
-        {tiles.map((p) => (
-          <ExploreProductTile key={p.id} product={p} />
+        {products.map((p) => (
+          <MarketplaceProductTile
+            key={p.id}
+            product={toMarketplaceProductTileData(p as EnrichedCatalogProduct)}
+          />
         ))}
       </div>
     </section>

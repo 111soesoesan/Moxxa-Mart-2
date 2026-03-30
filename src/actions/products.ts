@@ -15,7 +15,7 @@ export type ProductFormData = Omit<ProductInsert, "shop_id">;
 
 
 const CATALOG_VARIATION_SELECT =
-  "id, is_active, stock_quantity, price, sale_price, track_inventory";
+  "id, is_active, stock_quantity, price, sale_price, track_inventory, attribute_combination";
 
 const PDP_VARIATION_SELECT =
   "id, attribute_combination, price, sale_price, stock_quantity, image_url, is_active, track_inventory, inventory(stock_quantity, reserved_quantity)";

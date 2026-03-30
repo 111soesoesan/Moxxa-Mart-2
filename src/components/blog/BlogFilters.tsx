@@ -10,8 +10,8 @@ import { cn } from "@/lib/utils";
 const SORT_OPTIONS = [
   { value: "newest", label: "Newest" },
   { value: "oldest", label: "Oldest" },
-  { value: "popular", label: "Most Liked" },
-  { value: "most-commented", label: "Most Commented" },
+  { value: "popular", label: "Most liked" },
+  { value: "most-commented", label: "Most commented" },
 ] as const;
 
 export function BlogFilters() {
@@ -36,41 +36,63 @@ export function BlogFilters() {
   );
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium text-muted-foreground shrink-0">Sort:</span>
-        <Select value={sort} onValueChange={(v) => update("sort", v)}>
-          <SelectTrigger className="w-44 h-8 text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SORT_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+    <div className="flex flex-col gap-4 border-b border-border/60 pb-8">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
+        <div className="min-w-0 flex-1">
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Category
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={!category ? "default" : "secondary"}
+              className={cn(
+                "h-9 rounded-full px-4 text-xs font-semibold shadow-none",
+                !category ? "" : "bg-muted/70 text-foreground hover:bg-muted"
+              )}
+              onClick={() => update("category", "")}
+            >
+              All stories
+            </Button>
+            {BLOG_CATEGORIES.map((cat) => {
+              const active = category === cat.slug;
+              return (
+                <Button
+                  key={cat.slug}
+                  type="button"
+                  size="sm"
+                  variant={active ? "default" : "secondary"}
+                  className={cn(
+                    "h-9 rounded-full px-4 text-xs font-semibold shadow-none",
+                    active ? "" : "bg-muted/70 text-foreground hover:bg-muted"
+                  )}
+                  onClick={() => update("category", cat.slug)}
+                >
+                  {cat.name}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant={!category ? "default" : "outline"}
-          className="h-8 rounded-full text-xs"
-          onClick={() => update("category", "")}
-        >
-          All
-        </Button>
-        {BLOG_CATEGORIES.map((cat) => (
-          <Button
-            key={cat.slug}
-            size="sm"
-            variant={category === cat.slug ? "default" : "outline"}
-            className={cn("h-8 rounded-full text-xs")}
-            onClick={() => update("category", cat.slug)}
-          >
-            {cat.name}
-          </Button>
-        ))}
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground whitespace-nowrap">
+            Sort by
+          </span>
+          <Select value={sort} onValueChange={(v) => update("sort", v)}>
+            <SelectTrigger className="h-10 w-full min-w-[10.5rem] rounded-lg border-0 bg-muted/40 text-sm font-medium shadow-none ring-1 ring-border/30 sm:w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
     </div>
   );

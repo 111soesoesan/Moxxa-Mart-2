@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/utils";
@@ -11,11 +11,25 @@ interface PriceSliderProps {
   minPrice: number;
   maxPrice: number;
   onChange: (min: number, max: number) => void;
+  /** Hide visible label when the parent (e.g. accordion trigger) already titles the section */
+  hideLabel?: boolean;
 }
 
-export function PriceSlider({ min, max, minPrice, maxPrice, onChange }: PriceSliderProps) {
+export function PriceSlider({
+  min,
+  max,
+  minPrice,
+  maxPrice,
+  onChange,
+  hideLabel = false,
+}: PriceSliderProps) {
   const [localMin, setLocalMin] = useState(minPrice);
   const [localMax, setLocalMax] = useState(maxPrice);
+
+  useEffect(() => {
+    setLocalMin(minPrice);
+    setLocalMax(maxPrice);
+  }, [minPrice, maxPrice]);
 
   const handleMinChange = useCallback((value: string) => {
     const num = parseInt(value) || 0;
@@ -49,10 +63,12 @@ export function PriceSlider({ min, max, minPrice, maxPrice, onChange }: PriceSli
   return (
     <div className="space-y-4">
       <div>
-        <Label className="text-sm font-semibold mb-2 block">Price Range</Label>
-        
+        <Label className={hideLabel ? "sr-only" : "mb-2 block text-sm font-semibold"}>
+          Price range
+        </Label>
+
         {/* Visual slider */}
-        <div className="relative h-2 bg-muted rounded-full mb-4">
+        <div className="relative h-2 bg-muted rounded-full my-4">
           <div
             className="absolute h-full bg-primary rounded-full"
             style={{

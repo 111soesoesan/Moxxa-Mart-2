@@ -130,7 +130,7 @@ export async function getActiveShops(limit = 12, offset = 0) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("shops")
-    .select("*")
+    .select("*, browse_categories(name, slug)")
     .eq("status", "active")
     .range(offset, offset + limit - 1)
     .order("created_at", { ascending: false });
@@ -181,7 +181,7 @@ export async function searchShops(query: string, limit = 8) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("shops")
-    .select("*")
+    .select("*, browse_categories(name, slug)")
     .eq("status", "active")
     .ilike("name", `%${query}%`)
     .limit(limit);
@@ -282,7 +282,7 @@ export async function getShopsWithFilters({
 
   let req = supabase
     .from("shops")
-    .select("*, products(id)", { count: "exact" })
+    .select("*, products(id), browse_categories(name, slug)", { count: "exact" })
     .eq("status", "active");
 
   // Apply filters

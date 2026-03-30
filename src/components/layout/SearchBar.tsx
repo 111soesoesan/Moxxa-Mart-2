@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
@@ -12,14 +12,20 @@ export function SearchBar({
   initialValue = "",
   className,
   compactOnMobile = false,
+  /** Wider bar with icon inside the field (search page). */
+  variant = "default",
 }: {
   initialValue?: string;
   className?: string;
-  /** On small screens, show a tap target that goes to `/search` instead of an inline field. */
   compactOnMobile?: boolean;
+  variant?: "default" | "page";
 }) {
   const router = useRouter();
   const [query, setQuery] = useState(initialValue);
+
+  useEffect(() => {
+    setQuery(initialValue);
+  }, [initialValue]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,6 +33,8 @@ export function SearchBar({
     if (q) router.push(`/search?q=${encodeURIComponent(q)}`);
     else router.push("/search");
   };
+
+  const isPageVariant = variant === "page";
 
   if (compactOnMobile) {
     return (
@@ -51,13 +59,34 @@ export function SearchBar({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search products or shops…"
-            className="flex-1"
+            className="flex-1 rounded-full"
           />
-          <Button type="submit" size="icon" variant="default">
+          <Button type="submit" size="icon" variant="default" className="rounded-full">
             <Search className="h-4 w-4" />
           </Button>
         </form>
       </div>
+    );
+  }
+
+  if (isPageVariant) {
+    return (
+      <form onSubmit={handleSearch} className={cn("relative w-full", className)}>
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search products, shops, or categories…"
+          className="h-12 w-full rounded-full border-border/80 bg-background pr-14 text-base shadow-sm"
+        />
+        <Button
+          type="submit"
+          size="icon"
+          className="absolute right-1.5 top-1/2 h-10 w-10 -translate-y-1/2 rounded-full"
+          aria-label="Search"
+        >
+          <Search className="h-5 w-5" />
+        </Button>
+      </form>
     );
   }
 
@@ -67,9 +96,9 @@ export function SearchBar({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search products or shops…"
-        className="flex-1"
+        className="flex-1 rounded-full"
       />
-      <Button type="submit" size="icon" variant="default">
+      <Button type="submit" size="icon" variant="default" className="rounded-full">
         <Search className="h-4 w-4" />
       </Button>
     </form>

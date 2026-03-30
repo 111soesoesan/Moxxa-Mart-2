@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { getShopsWithFilters } from "@/actions/shops";
 import { getActiveBrowseCategories } from "@/actions/browseCategories";
-import { ShopCard } from "@/components/shared/ShopCard";
+import { MarketplaceShopCard } from "@/components/marketplace/MarketplaceShopCard";
 import { ShopFilters } from "@/components/filters/ShopFilters";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -36,9 +36,9 @@ async function ShopsGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       {shops.map((shop) => (
-        <ShopCard key={shop.id} shop={shop} />
+        <MarketplaceShopCard key={shop.id} shop={shop} />
       ))}
     </div>
   );
@@ -46,9 +46,20 @@ async function ShopsGrid({
 
 function ShopsGridSkeleton() {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       {Array.from({ length: 12 }).map((_, i) => (
-        <Skeleton key={i} className="aspect-square rounded-lg" />
+        <div key={i} className="overflow-hidden rounded-xl border border-border/60">
+          <Skeleton className="aspect-[16/9] w-full rounded-none" />
+          <div className="space-y-2 p-4">
+            <Skeleton className="h-5 w-2/3" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-px w-full" />
+            <div className="flex justify-between pt-1">
+              <Skeleton className="h-4 w-14" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+          </div>
+        </div>
       ))}
     </div>
   );

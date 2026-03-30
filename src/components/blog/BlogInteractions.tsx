@@ -15,6 +15,9 @@ type Props = {
   shareCount: number;
   isAuthenticated: boolean;
   onCommentClick?: () => void;
+  /** Stack actions vertically (e.g. blog post sidebar) */
+  variant?: "inline" | "stacked";
+  className?: string;
 };
 
 export function BlogInteractions({
@@ -25,6 +28,8 @@ export function BlogInteractions({
   shareCount,
   isAuthenticated,
   onCommentClick,
+  variant = "inline",
+  className,
 }: Props) {
   const [liked, setLiked] = useState(initialLiked);
   const [likeCount, setLikeCount] = useState(initialLikeCount);
@@ -60,40 +65,58 @@ export function BlogInteractions({
     }
   };
 
+  const stacked = variant === "stacked";
+
   return (
-    <div className="flex items-center gap-2">
+    <div
+      className={cn(
+        "flex gap-2",
+        stacked ? "flex-col items-stretch" : "items-center",
+        className
+      )}
+    >
       <Button
         variant="ghost"
         size="sm"
         className={cn(
-          "gap-1.5 text-muted-foreground hover:text-red-500",
+          "justify-start gap-1.5 text-muted-foreground hover:text-red-500",
+          stacked && "h-10 w-full",
           liked && "text-red-500"
         )}
         onClick={handleLike}
         disabled={isPending}
       >
-        <Heart className={cn("h-4 w-4", liked && "fill-current")} />
-        <span>{likeCount}</span>
+        <Heart className={cn("h-4 w-4 shrink-0", liked && "fill-current")} />
+        <span>{likeCount} likes</span>
       </Button>
 
       <Button
         variant="ghost"
         size="sm"
-        className="gap-1.5 text-muted-foreground hover:text-primary"
-        onClick={onCommentClick}
+        className={cn(
+          "justify-start gap-1.5 text-muted-foreground hover:text-primary",
+          stacked && "h-10 w-full"
+        )}
+        onClick={() => {
+          if (onCommentClick) onCommentClick();
+          else document.getElementById("blog-comments")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
       >
-        <MessageCircle className="h-4 w-4" />
-        <span>{commentCount}</span>
+        <MessageCircle className="h-4 w-4 shrink-0" />
+        <span>{commentCount} comments</span>
       </Button>
 
       <Button
         variant="ghost"
         size="sm"
-        className="gap-1.5 text-muted-foreground hover:text-primary"
+        className={cn(
+          "justify-start gap-1.5 text-muted-foreground hover:text-primary",
+          stacked && "h-10 w-full"
+        )}
         onClick={handleShare}
       >
-        <Share2 className="h-4 w-4" />
-        <span>{shares}</span>
+        <Share2 className="h-4 w-4 shrink-0" />
+        <span>{shares} shares</span>
       </Button>
     </div>
   );

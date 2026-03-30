@@ -12,6 +12,7 @@ export type CatalogVariationRow = {
   sale_price: number | null;
   /** When false, SKU ignores stock (parent track_inventory must still be true). */
   track_inventory?: boolean | null;
+  attribute_combination?: Record<string, string> | null;
 };
 
 /** Shape required to compute display_price / display_in_stock (listing + ProductCard) */
@@ -33,6 +34,13 @@ export function effectiveVariationUnitPrice(v: VariationPriceFields): number {
   const sale = v.sale_price != null ? Number(v.sale_price) : NaN;
   if (!Number.isNaN(sale) && sale >= 0) return sale;
   return Number(v.price ?? 0);
+}
+
+/** Unit price for a simple product row (sale when set). */
+export function effectiveSimpleUnitPrice(p: { price: number; sale_price?: number | null }): number {
+  const sale = p.sale_price != null ? Number(p.sale_price) : NaN;
+  if (!Number.isNaN(sale) && sale >= 0) return sale;
+  return Number(p.price ?? 0);
 }
 
 /** Listing/card helpers: min "from" price and in-stock for variable vs simple */

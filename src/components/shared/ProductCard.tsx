@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { StarSummary } from "@/components/ratings/StarRating";
 import { type CatalogProductBase } from "@/lib/product-pricing";
 import { StatusBadge } from "./StatusBadge";
-import { formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 
 type Product = CatalogProductBase & {
   display_price: number;
@@ -14,7 +14,13 @@ type Product = CatalogProductBase & {
   shops?: { name: string; slug: string } | null;
 };
 
-export function ProductCard({ product }: { product: Product }) {
+export function ProductCard({
+  product,
+  className,
+}: {
+  product: Product;
+  className?: string;
+}) {
   const image = product.image_urls?.[0];
   const shop = product.shops;
   const listPrice = product.display_price ?? product.price;
@@ -23,7 +29,12 @@ export function ProductCard({ product }: { product: Product }) {
 
   return (
     <Link href={`/product/${product.id}`}>
-      <Card className="group overflow-hidden hover:shadow-md transition-shadow h-full">
+      <Card
+        className={cn(
+          "group h-full overflow-hidden border border-border/60 transition-shadow hover:shadow-md",
+          className
+        )}
+      >
         <div className="aspect-square relative bg-muted overflow-hidden">
           {image ? (
             <Image
