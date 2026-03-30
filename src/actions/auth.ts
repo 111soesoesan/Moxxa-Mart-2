@@ -30,6 +30,7 @@ export async function signUp(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const full_name = formData.get("full_name") as string;
+  const next = safeNextPath(formData.get("next"));
 
   const { error } = await supabase.auth.signUp({
     email,
@@ -38,7 +39,22 @@ export async function signUp(formData: FormData) {
   });
   if (error) return { error: error.message };
 
-  return { success: "Check your email to confirm your account." };
+  const params = new URLSearchParams({ email });
+  if (next) params.set("next", next);
+  redirect(`/check-email?${params.toString()}`);
+}
+
+export async function resendSignupEmail(formData: FormData) {
+  const supabase = await createClient();
+  const email = (formData.get("email") as string)?.trim();
+  if (!email) return { error: "Email is required" };
+
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email,
+  });
+  if (error) return { error: error.message };
+  return { ok: true as const };
 }
 
 export async function signOut() {
